@@ -3,13 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
-  <meta name="description" content="SAMA - Sistema Autônomo de Monitoramento Ambiental da Lagoa da Chapadinha. Acompanhe em tempo real a qualidade da água, diagnósticos e alertas ambientais.">
+  <meta name="description" content="SAMA - Sistema Autônomo de Monitoramento Ambiental da Lagoa da Chapadinha. Acompanhe em tempo real a qualidade da água, diagnósticos e alertas ambientais segundo a Resolução CONAMA 357/2005.">
   <meta name="theme-color" content="#0d9488">
   <title>SAMA | Monitoramento Hídrico - Lagoa da Chapadinha</title>
   <link rel="stylesheet" href="public.css">
 </head>
 <body>
-  <!-- Cabeçalho Principal da Visão Cidadão -->
+  <!-- =========================================================================
+       1. CABEÇALHO PRINCIPAL DA VISÃO CIDADÃO
+       ========================================================================= -->
   <header class="app-header">
     <div class="header-left">
       <button id="btnToggleDrawer" class="menu-toggle-btn" aria-label="Abrir menu de navegação e filtros" aria-expanded="false">
@@ -30,7 +32,7 @@
       </div>
     </div>
 
-    <!-- Indicador de Status Geral e Acesso Operador com Autenticação -->
+    <!-- Indicador de Status Geral e Acesso Operador com Modal de Senha -->
     <div class="header-right">
       <div class="status-summary-pill" id="globalStatusPill" title="Classificação geral da qualidade hídrica da bacia">
         <span class="status-dot status-dot--yellow" aria-hidden="true"></span>
@@ -47,7 +49,9 @@
     </div>
   </header>
 
-  <!-- Overlay Suave do Menu Lateral (Não Cobre 100% da Tela) -->
+  <!-- =========================================================================
+       2. MENU LATERAL (OVERLAY SUAVE - NÃO COBRE 100% DA TELA)
+       ========================================================================= -->
   <div id="drawerBackdrop" class="drawer-backdrop" aria-hidden="true"></div>
 
   <aside id="sideDrawer" class="side-drawer" aria-label="Painel de Controle e Informações Ambientais" aria-hidden="true">
@@ -140,88 +144,193 @@
     </div>
   </aside>
 
-  <!-- Conteúdo Principal: Fluxo Livre com Mapa Navegável e Guia Cidadão -->
+  <!-- =========================================================================
+       3. CONTEÚDO PRINCIPAL (LANDING PAGE COM INTRODUÇÃO, MAPA & GUIA CIDADÃO)
+       ========================================================================= -->
   <main class="public-main">
-    
-    <!-- 1. Seção do Mapa Interativo da Lagoa -->
-    <section class="map-viewport-section" id="mapViewport" aria-label="Visualizador cartográfico da Lagoa da Chapadinha">
-      <!-- Controles de Zoom Flutuantes -->
-      <div class="map-controls" role="toolbar" aria-label="Controles de zoom do mapa">
-        <button id="btnZoomIn" class="map-ctrl-btn" title="Aumentar Zoom" aria-label="Aumentar Zoom">+</button>
-        <button id="btnZoomOut" class="map-ctrl-btn" title="Diminuir Zoom" aria-label="Diminuir Zoom">&minus;</button>
-        <button id="btnZoomReset" class="map-ctrl-btn" title="Centralizar Mapa" aria-label="Centralizar Mapa">&#8635;</button>
+
+    <!-- SEÇÃO DE INTRODUÇÃO (HERO INSTITUCIONAL) -->
+    <section class="hero-section" id="heroIntro" aria-label="Apresentação institucional do SAMA">
+      <div class="hero-container">
+        <div class="hero-badge">
+          <span class="hero-badge-dot" aria-hidden="true"></span>
+          <span>SISTEMA AUTÔNOMO DE MONITORAMENTO AMBIENTAL • RES. CONAMA 357/2005</span>
+        </div>
+
+        <h1 class="hero-title">
+          Monitoramento Hidrográfico da <span class="hero-highlight">Lagoa da Chapadinha</span>
+        </h1>
+
+        <p class="hero-description">
+          O <strong>SAMA</strong> é a infraestrutura pública digital de vigilância hídrica da bacia da Lagoa da Chapadinha (Parque Regina Freire). Com monitoramento autônomo e amostragem técnica contínua, o sistema garante a proteção do manancial, a transparência ambiental e a saúde coletiva da comunidade, avaliando balneabilidade e sanidade ecológica de acordo com as normas federais de <strong>Águas Doces Classe 2</strong>.
+        </p>
+
+        <!-- Três Pilares Ecológicos e Legais -->
+        <div class="hero-pillars-grid">
+          <article class="hero-pillar-card">
+            <div class="pillar-icon-wrap" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
+              </svg>
+            </div>
+            <div class="pillar-content">
+              <h2 class="pillar-title">Importância Ecológica</h2>
+              <p class="pillar-text">
+                Manancial hidrográfico vital para a microbacia urbana, abrigo de macrófitas e aves migratórias, além de núcleo de convívio social e lazer no Parque Regina Freire.
+              </p>
+            </div>
+          </article>
+
+          <article class="hero-pillar-card">
+            <div class="pillar-icon-wrap" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+              </svg>
+            </div>
+            <div class="pillar-content">
+              <h2 class="pillar-title">Base Legal CONAMA 357</h2>
+              <p class="pillar-text">
+                Águas enquadradas na Classe 2: destinadas à recreação de contato primário (banho, esportes) e preservação do ecossistema aquático com metas estritas de conformidade.
+              </p>
+            </div>
+          </article>
+
+          <article class="hero-pillar-card">
+            <div class="pillar-icon-wrap" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+              </svg>
+            </div>
+            <div class="pillar-content">
+              <h2 class="pillar-title">Critério do Pior Cenário</h2>
+              <p class="pillar-text">
+                Princípio da Máxima Proteção à Saúde: mesmo com pH neutro (6.0 a 9.0), a detecção de <em>E. coli</em> ou turbidez elevada impõe status <strong>Crítico (Vermelho)</strong> imediato.
+              </p>
+            </div>
+          </article>
+        </div>
+
+        <!-- Barra de Ação Rápida e Navegação para o Mapa -->
+        <div class="hero-action-bar">
+          <a href="#mapViewport" class="btn-hero-cta">
+            <span>Explorar Mapa Interativo e Pinos de Coleta</span>
+            <svg viewBox="0 0 20 20" width="18" height="18" fill="currentColor" aria-hidden="true">
+              <path fill-rule="evenodd" d="M16.707 10.293a1 1 0 010 1.414l-6 6a1 1 0 01-1.414 0l-6-6a1 1 0 111.414-1.414L9 14.586V3a1 1 0 012 0v11.586l4.293-4.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+            </svg>
+          </a>
+          <div class="hero-stats-strip">
+            <span class="hero-stat-item"><strong>5</strong> Estações de Amostragem</span>
+            <span class="hero-stat-sep">&bull;</span>
+            <span class="hero-stat-item">Sensoriamento Contínuo</span>
+            <span class="hero-stat-sep">&bull;</span>
+            <span class="hero-stat-item">Parque Regina Freire</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SEÇÃO DO MAPA INTERATIVO DA LAGOA (IMAGEM HORIZONTAL lagoa-completa.png) -->
+    <section class="map-viewport-section" id="mapViewport" aria-label="Visualizador cartográfico horizontal da Lagoa da Chapadinha">
+      
+      <!-- Toolbar de Controles do Mapa (Zoom e Alternância de Camadas) -->
+      <div class="map-controls-bar">
+        <div class="map-layer-switcher" role="group" aria-label="Alternar visualização da lagoa">
+          <button type="button" id="btnLayerComplete" class="layer-btn active" title="Visualização completa de satélite com o entorno do parque">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+              <polyline points="2 17 12 22 22 17"></polyline>
+              <polyline points="2 12 12 17 22 12"></polyline>
+            </svg>
+            <span>Satélite Completo</span>
+          </button>
+          <button type="button" id="btnLayerIsolated" class="layer-btn" title="Recorte preciso da lâmina d'água isolada">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path>
+            </svg>
+            <span>Lâmina D'água</span>
+          </button>
+        </div>
+
+        <div class="map-zoom-group" role="toolbar" aria-label="Controles de zoom do mapa">
+          <button id="btnZoomIn" class="map-ctrl-btn" title="Aumentar Zoom" aria-label="Aumentar Zoom">+</button>
+          <button id="btnZoomOut" class="map-ctrl-btn" title="Diminuir Zoom" aria-label="Diminuir Zoom">&minus;</button>
+          <button id="btnZoomReset" class="map-ctrl-btn" title="Centralizar e Restaurar Zoom" aria-label="Restaurar Zoom">&#8635;</button>
+        </div>
       </div>
 
-      <!-- Barra de Instrução Contextual -->
+      <!-- Barra de Instrução Contextual Flutuante -->
       <div class="map-hint-pill" id="mapHintPill">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
           <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 0 1 0-5 2.5 2.5 0 0 1 0 5z"/>
         </svg>
-        <span>Toque nos pinos da lagoa para ver diagnóstico e histórico de 30 dias</span>
+        <span>Toque nos pinos sobre a lâmina d'água para abrir o diagnóstico e o histórico de 30 dias</span>
       </div>
 
-      <!-- Palco da Carta Cartográfica com Background lagoa-mapa.jpg -->
+      <!-- Palco da Carta Cartográfica com Proporção Horizontal Estrita (530 x 204) -->
       <div class="map-stage" id="mapStage">
         <div class="map-canvas-wrapper" id="mapCanvasWrapper">
-          <!-- Imagem de Fundo de Satélite Oficial -->
-          <img src="lagoa-mapa.jpg" alt="Carta Hidrográfica e Cartográfica da Lagoa da Chapadinha" class="map-background-img" id="mapImage" loading="eager">
+          <!-- Imagem de Fundo de Satélite Oficial (Horizontal) -->
+          <img src="lagoa-completa.png" alt="Carta Satelital da Lagoa da Chapadinha e Parque Regina Freire" class="map-background-img" id="mapImage" loading="eager">
 
-          <!-- Pinos Interativos de Amostragem (Injetados via public.js) -->
+          <!-- Pinos Interativos de Amostragem (Injetados via public.js sobre a água) -->
           <div class="pins-layer" id="pinsLayer" aria-label="Pontos de amostragem na lâmina d'água"></div>
         </div>
       </div>
 
-      <!-- Rodapé com Badge de Monitoramento Ativo -->
+      <!-- Rodapé do Visualizador com Metadados e Coordenadas da Bacia -->
       <div class="map-bottom-bar">
         <div class="map-bottom-badge">
           <span class="live-pulse-dot" aria-hidden="true"></span>
-          <span>Monitoramento Hídrico Ativo &bull; Parque Regina Freire</span>
+          <span>Rede Ativa &bull; Parque Regina Freire</span>
         </div>
-        <span class="map-bottom-coords">Águas Doces Classe 2 &bull; Resolução CONAMA 357</span>
+        <span class="map-bottom-coords">Padrão CONAMA 357/2005 &bull; Classe 2 &bull; 10°04' S, 44°17' W</span>
       </div>
     </section>
 
-    <!-- 2. BLOCO PERMANENTE: GUIA INFORMATIVO CIDADÃO (Logo Abaixo do Mapa no Mobile / Ao Lado no Desktop) -->
+    <!-- BLOCO DIDÁTICO: GUIA INFORMATIVO CIDADÃO (VISÍVEL NO MOBILE & DESKTOP) -->
     <section class="citizen-guide-block" id="citizenGuideSection" aria-label="Guia Didático do Cidadão sobre Qualidade Hídrica">
       <div class="guide-header">
         <div class="guide-title-wrap">
-          <span class="guide-icon">&#128218;</span>
+          <span class="guide-icon" aria-hidden="true">&#128218;</span>
           <div>
             <h2 class="guide-title">Guia Informativo Cidadão</h2>
-            <p class="guide-subtitle">Aprenda a interpretar os indicadores de qualidade da Lagoa da Chapadinha</p>
+            <p class="guide-subtitle">Aprenda a interpretar os parâmetros de sanidade ecológica da Lagoa da Chapadinha</p>
           </div>
         </div>
       </div>
 
       <div class="guide-cards-grid">
-        <!-- Card Didático A: O que é o pH e a Faixa Ideal CONAMA 357 -->
+        <!-- Card Didático 1: O que é o pH e a Faixa Ideal CONAMA 357 -->
         <article class="guide-card guide-card--ph">
           <div class="guide-card-top">
             <span class="guide-badge guide-badge--primary">Parâmetro Químico</span>
-            <span class="guide-range-pill">Ideal: 6.0 a 9.0</span>
+            <span class="guide-range-pill">Faixa Ideal: 6.00 a 9.00</span>
           </div>
           <h3 class="guide-card-title">&#9877; O que é o pH da Água?</h3>
           <p class="guide-card-text">
-            O <strong>Potencial Hidrogeniônico (pH)</strong> mede o nível de acidez ou alcalinidade da água em uma escala de 0 a 14. 
-            Pela Resolução <strong>CONAMA 357 (Classe 2)</strong>, a faixa segura para preservação aquática e contato humano situa-se entre <strong>6.00 e 9.00</strong>.
+            O <strong>Potencial Hidrogeniônico (pH)</strong> mede a intensidade da acidez ou alcalinidade da lâmina d'água em uma escala de 0 a 14. 
+            Conforme a Resolução <strong>CONAMA 357 (Classe 2)</strong>, a faixa ideal para proteção de comunidades aquáticas e contato recreativo situa-se entre <strong>6.00 e 9.00</strong>.
           </p>
           <div class="guide-ph-spectrum" aria-hidden="true">
             <div class="spectrum-bar">
-              <span class="spectrum-zone spectrum-zone--acid">0 Ácido</span>
-              <span class="spectrum-zone spectrum-zone--ideal">6.0 a 9.0 (Ideal)</span>
-              <span class="spectrum-zone spectrum-zone--alkaline">Alcalino 14</span>
+              <span class="spectrum-zone spectrum-zone--acid">0 Ácida</span>
+              <span class="spectrum-zone spectrum-zone--ideal">6.0 a 9.0 (Ideal CONAMA)</span>
+              <span class="spectrum-zone spectrum-zone--alkaline">14 Alcalina</span>
             </div>
           </div>
           <p class="guide-card-footnote">
-            Águas muito ácidas (< 6.0) ou alcalinas (> 9.0) provocam irritação na pele de banhistas e aceleram a dissolução de metais pesados tóxicos.
+            Águas muito ácidas (< 6.0) ou alcalinas (> 9.0) provocam dermatite em banhistas, irritam mucosas e aumentam a toxicidade de metais pesados na bacia.
           </p>
         </article>
 
-        <!-- Card Didático B: Indicadores Críticos -->
+        <!-- Card Didático 2: Indicadores Críticos (E. coli, Turbidez e Oxigênio Dissolvido) -->
         <article class="guide-card guide-card--indicators">
           <div class="guide-card-top">
-            <span class="guide-badge guide-badge--warning">Segurança & Saúde</span>
-            <span class="guide-range-pill">Limites Regulatórios</span>
+            <span class="guide-badge guide-badge--warning">Segurança Sanitária</span>
+            <span class="guide-range-pill">Limiares de Alerta</span>
           </div>
           <h3 class="guide-card-title">&#9888; O Que Significam os Indicadores Críticos?</h3>
           <div class="indicators-mini-list">
@@ -231,7 +340,7 @@
                 <span class="indicator-limit">Máx: 1.000 NMP/100mL</span>
               </div>
               <p class="indicator-desc">
-                Bactéria presente no intestino de animais de sangue quente. Sua presença acima de 1.000 NMP/100mL indica despejo de <strong>esgoto in natura</strong> e alto risco de gastroenterite e infecções.
+                Bactéria presente no trato intestinal humano e animal. Valores acima de 1.000 NMP/100mL denunciam despejo de <strong>esgoto sanitário in natura</strong> e risco de hepatite A e diarreia.
               </p>
             </div>
 
@@ -241,7 +350,7 @@
                 <span class="indicator-limit">Máx: 40 NTU</span>
               </div>
               <p class="indicator-desc">
-                Mede o bloqueio da luz solar por partículas em suspensão e assoreamento. Água muito turva (> 40 NTU) impede a fotossíntese de plantas aquáticas e aquece a água em excesso.
+                Indica o grau de atenuação da luz solar por partículas em suspensão e assoreamento. Água com turbidez > 40 NTU bloqueia a fotossíntese de plantas aquáticas e sobreaquece a lâmina superficial.
               </p>
             </div>
 
@@ -251,13 +360,13 @@
                 <span class="indicator-limit">Mín: 5.0 mg/L</span>
               </div>
               <p class="indicator-desc">
-                Representa o oxigênio disponível para a respiração de peixes e macrófitas. Abaixo de <strong>4.0 mg/L</strong>, ocorre asfixia da fauna aquática e mortandade de peixes.
+                Concentração de oxigênio gasoso dissolvido na água vital para os peixes. Concentrações abaixo de <strong>4.0 mg/L</strong> causam asfixia da fauna aquática e mortandade em massa.
               </p>
             </div>
           </div>
         </article>
 
-        <!-- Card Didático C: Critério do Pior Cenário -->
+        <!-- Card Didático 3: Critério do Pior Cenário -->
         <article class="guide-card guide-card--worst-case">
           <div class="guide-card-top">
             <span class="guide-badge guide-badge--danger">Princípio da Máxima Proteção</span>
@@ -265,11 +374,11 @@
           </div>
           <h3 class="guide-card-title">&#128308; Por que o Pino Fica Vermelho com pH Ideal?</h3>
           <p class="guide-card-text">
-            O SAMA adota o critério internacional <em>"one-out, all-out"</em>: <strong>a segurança hídrica é determinada pelo parâmetro de pior condição</strong>, e nunca por uma média cosmética.
+            O SAMA adota o rigoroso critério <em>"one-out, all-out"</em>: <strong>a segurança hídrica é definida pelo indicador de pior condição</strong>, sem mascarar desvios graves com médias estatísticas.
           </p>
           <div class="worst-case-example-box">
             <div class="example-row">
-              <span class="example-param">pH = 7.30 (Neutro)</span>
+              <span class="example-param">pH = 7.30 (Equilibrado)</span>
               <span class="example-tag tag--green">&#10003; Ideal</span>
             </div>
             <div class="example-row">
@@ -283,14 +392,14 @@
             </div>
           </div>
           <p class="guide-card-footnote">
-            Mesmo com acidez balanceada, a água está microbiologicamente contaminada. O sistema semafórico prioriza a saúde da população de Chapadinha.
+            Mesmo com pH neutro e água límpida, patógenos invisíveis podem causar infecções. O pino vermelho alerta imediatamente a população e os órgãos fiscalizadores.
           </p>
         </article>
       </div>
     </section>
 
-    <!-- 3. CARD DE DIAGNÓSTICO DO PONTO (Bottom Sheet no Mobile / Painel Flutuante no Desktop) -->
-    <!-- Posicionado livremente, com z-index: 9999, sem backdrop escuro bloqueante -->
+    <!-- CARD DE DIAGNÓSTICO DO PONTO (BOTTOM SHEET NO MOBILE / PAINEL FLUTUANTE NO DESKTOP) -->
+    <!-- Sem backdrop escuro bloqueante, z-index: 9999, fechamento instantâneo no X -->
     <article id="floatingCard" class="floating-diagnostic-card" role="dialog" aria-modal="false" aria-labelledby="cardPointName" hidden>
       <!-- Puxador Visual Mobile -->
       <div class="card-drag-handle" aria-hidden="true"></div>
@@ -299,7 +408,7 @@
         <div class="card-point-info">
           <span class="point-code-badge" id="cardPointCode">P1</span>
           <div class="point-titles">
-            <h2 id="cardPointName" class="point-name">Foz Norte / Cabeceira da Lagoa</h2>
+            <h2 id="cardPointName" class="point-name">Foz Oeste / Entrada das Águas</h2>
             <span id="cardPointCoords" class="point-coords">10°04'28'' S, 44°17'52'' W</span>
           </div>
         </div>
@@ -308,7 +417,7 @@
       </div>
 
       <div class="card-body">
-        <!-- Bloco do Status Semafórico com Destaque para Regra do Pior Cenário -->
+        <!-- Veredito Semafórico do Pior Cenário -->
         <div class="status-verdict-box" id="cardVerdictBox">
           <div class="verdict-header">
             <div class="verdict-icon-container" id="cardVerdictIcon">
@@ -319,19 +428,19 @@
               <span class="verdict-sub" id="cardVerdictCondition">Imprópria para Recreação e Consumo</span>
             </div>
           </div>
-          <!-- Explicação do Pior Cenário -->
+          <!-- Explicação Racional do Pior Cenário -->
           <p class="verdict-rationale" id="cardVerdictRationale">
-            Apesar do pH estar dentro da faixa segura (7.30), parâmetros biológicos e físicos ultrapassaram os limites permitidos.
+            Apesar do pH estar na faixa de conformidade (7.30), o ponto é classificado como CRÍTICO devido a desvios severos em outros parâmetros.
           </p>
         </div>
 
-        <!-- Grade de Parâmetros Atuais -->
+        <!-- Grade de Indicadores Atuais -->
         <div class="metrics-grid">
           <div class="metric-tile" id="tilePh">
             <span class="metric-label">pH (Potencial Hidrogeniônico)</span>
             <div class="metric-value-row">
               <span class="metric-value" id="valPh">7.30</span>
-              <span class="metric-ideal-range">Ideal: 6.0 - 9.0</span>
+              <span class="metric-ideal-range">Ideal: 6.00 - 9.00</span>
             </div>
             <div class="mini-bar-track">
               <div class="mini-bar-fill" id="barPh" style="width: 52%;"></div>
@@ -384,14 +493,14 @@
           </div>
         </div>
 
-        <!-- Seção do Mini-Gráfico Histórico de 30 Dias -->
+        <!-- Seção do Mini-Gráfico Histórico de 30 Dias em Canvas -->
         <section class="history-chart-section">
           <div class="chart-header-row">
             <div class="chart-title-group">
-              <h3 class="chart-title">Tendência dos Últimos 30 Dias</h3>
+              <h3 class="chart-title">Tendência Histórica (Últimos 30 Dias)</h3>
               <span class="chart-subtitle" id="chartMetricLabel">Parâmetro: Turbidez (NTU)</span>
             </div>
-            <!-- Seleção do Parâmetro a Exibir no Gráfico -->
+            <!-- Seleção do Parâmetro a Exibir -->
             <div class="chart-tabs" role="tablist" aria-label="Parâmetro para histórico">
               <button class="chart-tab active" data-chart-metric="turbidity" role="tab" aria-selected="true">Turbidez</button>
               <button class="chart-tab" data-chart-metric="eColi" role="tab" aria-selected="false">E. coli</button>
@@ -400,7 +509,7 @@
             </div>
           </div>
 
-          <!-- Canvas Ultra-Performático Nativo para o Mini-Gráfico -->
+          <!-- Canvas Ultra-Performático Nativo -->
           <div class="canvas-chart-container">
             <canvas id="miniTrendCanvas" width="480" height="180" aria-label="Gráfico de linha com histórico de 30 dias"></canvas>
             <div id="chartTooltip" class="chart-tooltip" hidden></div>
@@ -412,7 +521,7 @@
               <span class="stat-value" id="chartStatMin">--</span>
             </div>
             <div class="stat-item">
-              <span class="stat-title">Média (30d):</span>
+              <span class="stat-title">Média:</span>
               <span class="stat-value" id="chartStatAvg">--</span>
             </div>
             <div class="stat-item">
@@ -420,13 +529,13 @@
               <span class="stat-value" id="chartStatMax">--</span>
             </div>
             <div class="stat-item stat-item--ref">
-              <span class="stat-title">Linha Guia:</span>
+              <span class="stat-title">Referência:</span>
               <span class="stat-value" id="chartStatLimit">CONAMA 357</span>
             </div>
           </div>
         </section>
 
-        <!-- Última Coleta e Fiscalização -->
+        <!-- Metadados de Amostragem e Auditoria -->
         <div class="card-footer-info">
           <div class="audit-row">
             <span class="audit-icon">&#9200;</span>
@@ -441,7 +550,9 @@
     </article>
   </main>
 
-  <!-- MODAL DE CONTROLE DE ACESSO COM SENHA PARA O ESPECIALISTA -->
+  <!-- =========================================================================
+       4. MODAL DE CONTROLE DE ACESSO COM SENHA PARA O ESPECIALISTA
+       ========================================================================= -->
   <div id="authBackdrop" class="auth-backdrop" hidden></div>
   <div id="authModal" class="auth-modal" role="dialog" aria-modal="true" aria-labelledby="authModalTitle" hidden>
     <div class="auth-modal-header">
@@ -486,7 +597,7 @@
         <button type="button" id="btnCancelAuth" class="btn-auth-cancel">Cancelar</button>
         <button type="submit" id="btnConfirmAuth" class="btn-auth-submit">
           <span>Acessar Terminal de Campo</span>
-          <svg viewBox="0 0 20 20" width="18" height="18" fill="currentColor">
+          <svg viewBox="0 0 20 20" width="18" height="18" fill="currentColor" aria-hidden="true">
             <path fill-rule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clip-rule="evenodd"/>
           </svg>
         </button>

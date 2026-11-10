@@ -4,9 +4,15 @@
  * VISÃO DO ESPECIALISTA (Operador de Campo) - especialista.js
  *
  * Módulo isolado (IIFE) sem vazamento de escopo global.
- * Implementa a Arquitetura Offline-First com LocalStorage, preenchimento automático
- * por clique na carta cartográfica, validação estrita de pH (0-14), captura
- * fotográfica comprimida e sincronização resiliente com a base central.
+ * Implementa:
+ * - Calibração de coordenadas com imagem horizontal (lagoa-completa.png)
+ * - Alternância de camadas (Satélite ⇄ Lâmina D'água)
+ * - Escala Colorimétrica Dinâmica de pH em tempo real com validação estrita (0-14)
+ * - Feedback dinâmico de turbidez conforme CONAMA 357
+ * - Toque no mapa para capturar coordenadas geográficas
+ * - Captura GPS nativo com alta precisão
+ * - Upload de foto da amostra com compressão Canvas (<50KB)
+ * - Arquitetura Offline-First com LocalStorage e sincronização resiliente
  * ============================================================================
  */
 (function () {
@@ -17,33 +23,33 @@
   const STORAGE_KEY_POINTS = 'SAMA_MONITORAMENTO_DB';
 
   // Delimitação Cartográfica da Lagoa da Chapadinha para Cálculo de Coordenadas
-  // X: 0% -> Long -44.30500 | 100% -> Long -44.28500
-  // Y: 0% -> Lat -10.07000  | 100% -> Lat -10.09000
+  // Projeção calibrada na imagem horizontal (530 x 204)
   const GEO_BOUNDS = {
-    latMin: -10.09000,
+    latMin: -10.08800,
     latMax: -10.07000,
     lngMin: -44.30500,
     lngMax: -44.28500
   };
 
-  // Coordenadas padrão dos pontos cadastrados
+  // Coordenadas padrão dos pontos cadastrados (100% sobre a lâmina d'água)
   const PRESET_POINTS = {
-    P1: { name: 'P1 - Foz Norte / Cabeceira da Lagoa', xPercent: 33.0, yPercent: 12.0, lat: -10.07240, lng: -44.29840 },
-    P2: { name: 'P2 - Orla Leste / Parque Regina Freire', xPercent: 64.0, yPercent: 35.0, lat: -10.07700, lng: -44.29220 },
-    P3: { name: 'P3 - Lâmina Central / Águas Abertas', xPercent: 44.0, yPercent: 46.0, lat: -10.07920, lng: -44.29620 },
-    P4: { name: 'P4 - Margem Oeste / Orla Urbana', xPercent: 30.0, yPercent: 58.0, lat: -10.08160, lng: -44.29900 },
-    P5: { name: 'P5 - Vertedouro Sul / Zona de Macrófitas', xPercent: 58.0, yPercent: 82.0, lat: -10.08640, lng: -44.29340 }
+    P1: { name: 'P1 - Foz Oeste / Entrada das Águas', xPercent: 14.0, yPercent: 70.0, lat: -10.07240, lng: -44.29840 },
+    P2: { name: 'P2 - Margem Norte / Parque Regina Freire', xPercent: 32.0, yPercent: 64.0, lat: -10.07700, lng: -44.29220 },
+    P3: { name: 'P3 - Lâmina Central / Águas Profundas', xPercent: 52.0, yPercent: 60.0, lat: -10.07920, lng: -44.29620 },
+    P4: { name: 'P4 - Enseada Nordeste / Macrófitas', xPercent: 72.0, yPercent: 48.0, lat: -10.08160, lng: -44.29900 },
+    P5: { name: 'P5 - Foz Leste / Vertedouro Sul', xPercent: 85.0, yPercent: 58.0, lat: -10.08640, lng: -44.29340 }
   };
 
   // 2. Estado Interno do Terminal do Especialista
   const state = {
     isOnline: navigator.onLine,
     selectedPointKey: 'P1',
-    currentCoords: { lat: -10.07240, lng: -44.29840, xPercent: 33.0, yPercent: 12.0 },
+    currentCoords: { lat: -10.07240, lng: -44.29840, xPercent: 14.0, yPercent: 70.0 },
     currentPhotoBase64: null,
     currentPhotoName: null,
     offlineQueue: [],
-    isSyncing: false
+    isSyncing: false,
+    fieldLayer: 'complete' // 'complete' | 'isolated'
   };
 
   // 3. Referências DOM
@@ -62,6 +68,8 @@
     fieldMapImg: document.getElementById('fieldMapImg'),
     collectionPin: document.getElementById('collectionPin'),
     mapOverlayCoords: document.getElementById('mapOverlayCoords'),
+    btnToggleFieldLayer: document.getElementById('btnToggleFieldLayer'),
+    fieldLayerLabel: document.getElementById('fieldLayerLabel'),
     btnUseGps: document.getElementById('btnUseGps'),
 
     // Formulário
@@ -76,11 +84,18 @@
     inputAirTemp: document.getElementById('inputAirTemp'),
     inputWaterTemp: document.getElementById('inputWaterTemp'),
     inputColor: document.getElementById('inputColor'),
+    turbidityFormField: document.getElementById('turbidityFormField'),
     inputTurbidity: document.getElementById('inputTurbidity'),
+    turbidityFeedbackPill: document.getElementById('turbidityFeedbackPill'),
+    turbidityFeedbackText: document.getElementById('turbidityFeedbackText'),
 
-    // Químicos (pH estrito)
+    // Químicos (pH Dinâmico)
     phFormField: document.getElementById('phFormField'),
     inputPh: document.getElementById('inputPh'),
+    phStatusPill: document.getElementById('phStatusPill'),
+    phStatusEmoji: document.getElementById('phStatusEmoji'),
+    phStatusText: document.getElementById('phStatusText'),
+    phPointer: document.getElementById('phPointer'),
     phValidationMsg: document.getElementById('phValidationMsg'),
     inputOd: document.getElementById('inputOd'),
     inputPhosphorus: document.getElementById('inputPhosphorus'),
@@ -112,14 +127,13 @@
     queueEmptyState: document.getElementById('queueEmptyState'),
     btnClearQueue: document.getElementById('btnClearQueue'),
 
-    // Feedback Toast
+    // Toast
     toastAlert: document.getElementById('toastAlert')
   };
 
-  // 4. Captura Automática de Data/Hora (Padrão ISO & Legível)
+  // 4. Captura Automática de Data/Hora (Legível e ISO)
   function refreshTimestamp() {
     const now = new Date();
-    // Exibição em formato brasileiro amigável no input: DD/MM/AAAA HH:MM:SS
     const pad = (n) => String(n).padStart(2, '0');
     const day = pad(now.getDate());
     const month = pad(now.getMonth() + 1);
@@ -134,17 +148,13 @@
     }
   }
 
-  // 5. MAPA DE COLETA: Clique na Carta Cartográfica Preenche Coordenadas Automaticamente
-  /**
-   * Converte a posição clicada no container (X%, Y%) em coordenadas geográficas
-   * calibradas da bacia da Lagoa da Chapadinha e atualiza os campos do formulário.
-   */
+  // 5. MAPA DE COLETA: Clique na Carta Horizontal Preenche Coordenadas Automaticamente
   function handleMapClick(e) {
     const rect = DOM.fieldMapContainer.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
     const clickY = e.clientY - rect.top;
 
-    // Percentual relativo dentro da imagem (0 a 100)
+    // Percentual relativo dentro da imagem horizontal (0 a 100)
     const xPct = Math.min(100, Math.max(0, (clickX / rect.width) * 100));
     const yPct = Math.min(100, Math.max(0, (clickY / rect.height) * 100));
 
@@ -154,12 +164,12 @@
 
     updateMapCoordinates(lat, lng, xPct, yPct);
 
-    // Seleciona opção "NOVO" ou customizada no select caso não seja um ponto fixo
+    // Ajusta o select para "+ Nova Estação Amostral Avulsa" se clicado livremente
     if (DOM.pointSelect && DOM.pointSelect.value !== 'NOVO') {
       DOM.pointSelect.value = 'NOVO';
     }
 
-    showToast('Coordenadas capturadas do mapa!', 'success', 2000);
+    showToast('Coordenadas capturadas do ponto na lagoa!', 'success', 2000);
   }
 
   function updateMapCoordinates(lat, lng, xPct, yPct) {
@@ -170,26 +180,38 @@
       yPercent: Number(yPct.toFixed(1))
     };
 
-    // Atualiza os inputs do formulário
     if (DOM.inputLat) DOM.inputLat.value = state.currentCoords.lat.toFixed(5);
     if (DOM.inputLng) DOM.inputLng.value = state.currentCoords.lng.toFixed(5);
 
-    // Move o pino de coleta no mapa
     if (DOM.collectionPin) {
       DOM.collectionPin.style.left = `${state.currentCoords.xPercent}%`;
       DOM.collectionPin.style.top = `${state.currentCoords.yPercent}%`;
     }
 
-    // Atualiza o overlay com as coordenadas no canto da imagem
     if (DOM.mapOverlayCoords) {
       DOM.mapOverlayCoords.textContent = `Lat: ${state.currentCoords.lat.toFixed(5)} | Long: ${state.currentCoords.lng.toFixed(5)}`;
+    }
+  }
+
+  // Alternar Camadas da Lagoa (Satélite Completo ⇄ Lâmina Isolada)
+  function toggleFieldLayer() {
+    if (state.fieldLayer === 'complete') {
+      state.fieldLayer = 'isolated';
+      DOM.fieldMapImg.src = 'lagoa-isolada.png';
+      DOM.fieldLayerLabel.textContent = 'Ver Satélite';
+      showToast('Camada alterada para Lâmina D\'água Isolada', 'success', 2000);
+    } else {
+      state.fieldLayer = 'complete';
+      DOM.fieldMapImg.src = 'lagoa-completa.png';
+      DOM.fieldLayerLabel.textContent = 'Ver Lâmina';
+      showToast('Camada alterada para Satélite Completo', 'success', 2000);
     }
   }
 
   // Captura via GPS Nativo do Smartphone
   function handleUseGps() {
     if (!navigator.geolocation) {
-      showToast('Geolocalização não suportada neste dispositivo.', 'warning');
+      showToast('Geolocalização não suportada neste aparelho.', 'warning');
       return;
     }
 
@@ -200,7 +222,6 @@
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
 
-        // Projeta no mapa cartográfico
         const xPct = ((lng - GEO_BOUNDS.lngMin) / (GEO_BOUNDS.lngMax - GEO_BOUNDS.lngMin)) * 100;
         const yPct = ((GEO_BOUNDS.latMax - lat) / (GEO_BOUNDS.latMax - GEO_BOUNDS.latMin)) * 100;
 
@@ -212,58 +233,111 @@
       },
       (err) => {
         console.warn('[SAMA Campo] Erro GPS:', err.message);
-        showToast('Não foi possível obter o sinal de GPS. Toque diretamente no mapa.', 'warning');
+        showToast('Não foi possível obter o sinal GPS. Toque diretamente no mapa.', 'warning');
       },
       { enableHighAccuracy: true, timeout: 8000 }
     );
   }
 
-  // 6. VALIDAÇÃO ESTRITA DE pH (ACEITANDO APENAS VALORES DE 0 A 14)
+  // 6. ESCALA COLORIMÉTRICA DINÂMICA DO pH & VALIDAÇÃO ESTRITA (0 a 14)
   /**
-   * Realiza a validação rigorosa do input de pH.
-   * Não permite envio caso esteja em branco, não-numérico ou fora de [0.00, 14.00].
+   * Conforme o operador digita o valor numérico do pH no input:
+   * a) pH < 6.0: O campo muda dinamicamente para tons de vermelho/laranja com o selo "🔴 Ácida (Fora CONAMA)".
+   * b) pH entre 6.0 e 9.0: O campo muda para verde com o selo "🟢 Ideal / Conforme CONAMA".
+   * c) pH > 9.0: O campo muda para azul/roxo com o selo "🔵 Alcalina (Fora CONAMA)".
+   * Além disso, valida estritamente a faixa universal [0.00, 14.00].
    */
-  function validatePhStrict() {
+  function updatePhColorimetricScale() {
+    if (!DOM.inputPh || !DOM.phFormField) return;
+
     const rawVal = DOM.inputPh.value.trim();
+
     if (!rawVal) {
-      setPhError('O valor do pH é obrigatório.');
+      setPhInvalid('O valor do pH é obrigatório.');
       return false;
     }
 
     const num = parseFloat(rawVal.replace(',', '.'));
 
     if (isNaN(num)) {
-      setPhError('Insira um valor numérico válido para o pH.');
+      setPhInvalid('Insira um valor numérico válido.');
       return false;
     }
 
     if (num < 0 || num > 14) {
-      setPhError(`O pH (${num.toFixed(2)}) é INVÁLIDO. A escala de pH aceita estritamente valores de 0.00 a 14.00.`);
+      setPhInvalid(`O pH (${num.toFixed(2)}) é INVÁLIDO. A escala aceita estritamente valores de 0.00 a 14.00.`);
       return false;
     }
 
-    // Válido
-    clearPhError();
-    return true;
-  }
-
-  function setPhError(msg) {
-    DOM.phFormField.classList.add('has-error');
-    DOM.phValidationMsg.textContent = msg;
-    DOM.inputPh.setAttribute('aria-invalid', 'true');
-  }
-
-  function clearPhError() {
+    // Valor numérico válido entre 0 e 14
     DOM.phFormField.classList.remove('has-error');
     DOM.phValidationMsg.textContent = '';
     DOM.inputPh.removeAttribute('aria-invalid');
+
+    // Posiciona o ponteiro na régua espectral
+    const pct = Math.min(100, Math.max(0, (num / 14) * 100));
+    if (DOM.phPointer) {
+      DOM.phPointer.style.left = `${pct}%`;
+    }
+
+    // Remove classes anteriores
+    DOM.phFormField.classList.remove('ph-state-acid', 'ph-state-ideal', 'ph-state-alkaline');
+
+    if (num < 6.0) {
+      // a) pH < 6.0: Vermelho/Laranja com selo "🔴 Ácida (Fora CONAMA)"
+      DOM.phFormField.classList.add('ph-state-acid');
+      if (DOM.phStatusEmoji) DOM.phStatusEmoji.textContent = '🔴';
+      if (DOM.phStatusText) DOM.phStatusText.textContent = '🔴 Ácida (Fora CONAMA)';
+    } else if (num <= 9.0) {
+      // b) pH entre 6.0 e 9.0: Verde com selo "🟢 Ideal / Conforme CONAMA"
+      DOM.phFormField.classList.add('ph-state-ideal');
+      if (DOM.phStatusEmoji) DOM.phStatusEmoji.textContent = '🟢';
+      if (DOM.phStatusText) DOM.phStatusText.textContent = '🟢 Ideal / Conforme CONAMA';
+    } else {
+      // c) pH > 9.0: Azul/Roxo com selo "🔵 Alcalina (Fora CONAMA)"
+      DOM.phFormField.classList.add('ph-state-alkaline');
+      if (DOM.phStatusEmoji) DOM.phStatusEmoji.textContent = '🔵';
+      if (DOM.phStatusText) DOM.phStatusText.textContent = '🔵 Alcalina (Fora CONAMA)';
+    }
+
+    return true;
   }
 
-  // 7. UPLOAD DE FOTO DA AMOSTRA COM COMPRESSÃO EM CANVAS
-  /**
-   * Lê a foto da câmera ou arquivo, redimensiona e comprime via Canvas para
-   * garantir leveza total (< 50KB) no LocalStorage.
-   */
+  function setPhInvalid(msg) {
+    DOM.phFormField.classList.remove('ph-state-acid', 'ph-state-ideal', 'ph-state-alkaline');
+    DOM.phFormField.classList.add('has-error');
+    DOM.phValidationMsg.textContent = msg;
+    DOM.inputPh.setAttribute('aria-invalid', 'true');
+    if (DOM.phStatusEmoji) DOM.phStatusEmoji.textContent = '⚠️';
+    if (DOM.phStatusText) DOM.phStatusText.textContent = 'Valor Fora da Escala (0 a 14)';
+  }
+
+  // 7. VALIDAÇÃO & FEEDBACK DINÂMICO DE TURBIDEZ
+  function updateTurbidityFeedback() {
+    if (!DOM.inputTurbidity || !DOM.turbidityFeedbackText) return;
+
+    const val = parseFloat(DOM.inputTurbidity.value.replace(',', '.'));
+    if (isNaN(val)) return;
+
+    if (val <= 25.0) {
+      DOM.turbidityFeedbackPill.style.backgroundColor = '#ecfdf5';
+      DOM.turbidityFeedbackPill.style.borderColor = '#a7f3d0';
+      DOM.turbidityFeedbackPill.style.color = '#065f46';
+      DOM.turbidityFeedbackText.textContent = '🟢 Turbidez Ideal (≤ 25 NTU)';
+    } else if (val <= 40.0) {
+      DOM.turbidityFeedbackPill.style.backgroundColor = '#fffbeb';
+      DOM.turbidityFeedbackPill.style.borderColor = '#fde68a';
+      DOM.turbidityFeedbackPill.style.color = '#92400e';
+      DOM.turbidityFeedbackText.textContent = '🟡 Turbidez em Atenção (25 a 40 NTU)';
+    } else {
+      DOM.turbidityFeedbackPill.style.backgroundColor = '#fef2f2';
+      DOM.turbidityFeedbackPill.style.borderColor = '#fecaca';
+      DOM.turbidityFeedbackPill.style.color = '#991b1b';
+      DOM.turbidityFeedbackText.textContent = '🔴 Crítica (> 40 NTU - Violação CONAMA 357)';
+    }
+  }
+
+  // 8. UPLOAD DE FOTO COM COMPRESSÃO EM CANVAS (< 50KB)
   function handlePhotoUpload(e) {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
@@ -272,7 +346,6 @@
     reader.onload = function (evt) {
       const img = new Image();
       img.onload = function () {
-        // Redimensiona proporcionalmente para no máximo 600px
         const maxDim = 600;
         let w = img.width;
         let h = img.height;
@@ -291,19 +364,17 @@
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, w, h);
 
-        // Exporta como JPEG com compressão 0.7
         const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
         state.currentPhotoBase64 = compressedBase64;
         state.currentPhotoName = file.name;
 
-        // Atualiza preview na tela
         DOM.photoPreviewImg.src = compressedBase64;
         DOM.photoFileName.textContent = file.name;
         const approxKb = Math.round((compressedBase64.length * 3) / 4 / 1024);
-        DOM.photoFileSize.textContent = `Comprimida: ~${approxKb} KB (Pronta para LocalStorage)`;
+        DOM.photoFileSize.textContent = `Comprimida: ~${approxKb} KB (Otimizada para LocalStorage)`;
         DOM.photoPreviewContainer.hidden = false;
 
-        showToast('Foto da amostra anexada e comprimida com sucesso!', 'success');
+        showToast('Foto da amostra comprimida e anexada com sucesso!', 'success');
       };
       img.src = evt.target.result;
     };
@@ -318,7 +389,7 @@
     DOM.photoPreviewImg.src = '';
   }
 
-  // 8. ARQUITETURA OFFLINE-FIRST & PERSISTÊNCIA EM LOCALSTORAGE
+  // 9. ARQUITETURA OFFLINE-FIRST COM LOCALSTORAGE
   function loadOfflineQueue() {
     try {
       const stored = localStorage.getItem(STORAGE_KEY_OFFLINE);
@@ -336,7 +407,7 @@
       localStorage.setItem(STORAGE_KEY_OFFLINE, JSON.stringify(state.offlineQueue));
     } catch (e) {
       console.error('[SAMA Campo] Falha ao gravar no LocalStorage:', e);
-      showToast('Aviso: Armazenamento local cheio ou indisponível.', 'error');
+      showToast('Aviso: Armazenamento local cheio ou restrito.', 'error');
     }
     renderOfflineQueue();
     updateNetworkAndSyncUI();
@@ -345,13 +416,12 @@
   function renderOfflineQueue() {
     if (!DOM.queueList) return;
 
-    // Filtra coletas
     const pendingList = state.offlineQueue.filter(item => item.syncStatus === 'pending');
     DOM.pendingCounterBadge.textContent = `${pendingList.length} pendente(s)`;
 
     if (pendingList.length > 0) {
       DOM.pendingCounterBadge.classList.add('has-pending');
-      DOM.syncStatusText.textContent = `${pendingList.length} coleta(s) salvas no dispositivo aguardando envio`;
+      DOM.syncStatusText.textContent = `${pendingList.length} coleta(s) salvas no dispositivo aguardando sincronização`;
     } else {
       DOM.pendingCounterBadge.classList.remove('has-pending');
       DOM.syncStatusText.textContent = state.isOnline ? 'Todos os dados estão sincronizados!' : 'Modo Offline ativo (Beira da Lagoa)';
@@ -364,7 +434,7 @@
     }
 
     DOM.queueList.innerHTML = '';
-    state.offlineQueue.forEach((item, index) => {
+    state.offlineQueue.forEach((item) => {
       const el = document.createElement('div');
       el.className = 'queue-item';
 
@@ -377,7 +447,7 @@
         <div class="queue-item-left">
           <span class="queue-item-point">${item.pointName}</span>
           <span class="queue-item-meta">
-            ${item.displayDate} | pH: <strong>${item.data.ph.toFixed(2)}</strong> | Turb: <strong>${item.data.turbidity} NTU</strong> | E. coli: <strong>${item.data.eColi}</strong>
+            ${item.displayDate} | pH: <strong>${item.data.ph.toFixed(2)}</strong> | Turbidez: <strong>${item.data.turbidity} NTU</strong> | E. coli: <strong>${item.data.eColi}</strong>
           </span>
         </div>
         ${statusBadge}
@@ -387,12 +457,12 @@
     });
   }
 
-  // 9. ENVIO DO FORMULÁRIO DE COLETA
+  // 10. ENVIO DO FORMULÁRIO DE COLETA
   function handleFormSubmit(e) {
     e.preventDefault();
 
     // 1. Validação estrita de pH
-    if (!validatePhStrict()) {
+    if (!updatePhColorimetricScale()) {
       DOM.inputPh.focus();
       showToast('Corrija o pH antes de salvar (aceito apenas 0 a 14).', 'error');
       return;
@@ -448,27 +518,22 @@
       syncStatus: state.isOnline ? 'synced' : 'pending'
     };
 
-    // Salva na fila do LocalStorage
+    // Salva na fila local
     state.offlineQueue.unshift(sampleRecord);
     saveOfflineQueue();
 
-    // Se estiver online, sincroniza imediatamente com a base central
+    // Se online, sincroniza imediatamente com a base central (SAMA_MONITORAMENTO_DB)
     if (state.isOnline) {
       applySampleToDatabase(sampleRecord);
       showToast(`Coleta de ${pointName} gravada e sincronizada online!`, 'success', 3500);
     } else {
-      showToast(`Coleta salva LOCALMENTE (Modo Offline). Será sincronizada com o servidor ao reconectar!`, 'warning', 4500);
+      showToast(`Coleta salva no dispositivo (Modo Offline). Será sincronizada ao reconectar!`, 'warning', 4500);
     }
 
-    // Atualiza timestamp para o próximo registro
     refreshTimestamp();
   }
 
-  // 10. SINCRONIZAÇÃO RESILIENTE COM A BASE DE DADOS CENTRAL (SAMA_MONITORAMENTO_DB)
-  /**
-   * Consolida a coleta registrada com o banco central lido pela Visão Pública.
-   * Desta forma, a Visão Pública reflete em tempo real os dados colhidos em campo!
-   */
+  // 11. SINCRONIZAÇÃO COM A BASE CENTRAL (SAMA_MONITORAMENTO_DB)
   function applySampleToDatabase(sample) {
     try {
       const stored = localStorage.getItem(STORAGE_KEY_POINTS);
@@ -477,7 +542,6 @@
       let targetPoint = points.find(p => p.id === sample.pointKey || p.code === sample.pointKey);
 
       if (targetPoint) {
-        // Atualiza ponto existente
         targetPoint.current.ph = sample.data.ph;
         targetPoint.current.turbidity = sample.data.turbidity;
         targetPoint.current.eColi = sample.data.eColi;
@@ -488,7 +552,6 @@
         targetPoint.lastUpdate = 'Hoje, ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
         targetPoint.operator = sample.operator;
 
-        // Adiciona ao histórico de 30 dias (último ponto)
         if (targetPoint.history30d && targetPoint.history30d.length > 0) {
           const lastH = targetPoint.history30d[targetPoint.history30d.length - 1];
           lastH.ph = sample.data.ph;
@@ -497,7 +560,6 @@
           lastH.od = sample.data.dissolvedOxygen;
         }
       } else {
-        // Se for um novo ponto amostral avulso criado pelo especialista
         const newPoint = {
           id: sample.pointKey === 'NOVO' ? 'P' + (points.length + 1) : sample.pointKey,
           code: sample.pointKey === 'NOVO' ? 'P' + (points.length + 1) : sample.pointKey,
@@ -519,15 +581,12 @@
     }
   }
 
-  /**
-   * Sincroniza todas as coletas pendentes da fila offline
-   */
   function syncAllPending() {
     if (state.isSyncing) return;
     state.isSyncing = true;
 
     DOM.btnManualSync.classList.add('syncing');
-    DOM.syncStatusText.textContent = 'Sincronizando coletas pendentes com o servidor...';
+    DOM.syncStatusText.textContent = 'Sincronizando coletas pendentes com a central...';
 
     setTimeout(() => {
       let syncedCount = 0;
@@ -544,14 +603,14 @@
       DOM.btnManualSync.classList.remove('syncing');
 
       if (syncedCount > 0) {
-        showToast(`Sincronização concluída: ${syncedCount} coleta(s) enviada(s) para a central!`, 'success', 3500);
+        showToast(`Sincronização concluída: ${syncedCount} coleta(s) enviada(s)!`, 'success', 3500);
       } else {
         showToast('Nenhuma nova coleta pendente para sincronizar.', 'success', 2500);
       }
     }, 700);
   }
 
-  // 11. Monitoramento de Rede e Eventos Online/Offline
+  // 12. Conectividade Online / Offline
   function updateNetworkAndSyncUI() {
     state.isOnline = navigator.onLine;
 
@@ -560,17 +619,14 @@
       DOM.networkLabel.textContent = state.isOnline ? 'Online' : 'Modo Offline';
     }
 
-    if (state.isOnline) {
-      DOM.btnManualSync.disabled = false;
-    } else {
-      DOM.btnManualSync.disabled = true;
+    if (DOM.btnManualSync) {
+      DOM.btnManualSync.disabled = !state.isOnline;
     }
   }
 
   function handleOnlineEvent() {
     updateNetworkAndSyncUI();
-    showToast('Conexão restabelecida! Iniciando sincronização automática...', 'success', 3000);
-    // Auto-sincroniza a fila offline assim que a conexão volta
+    showToast('Conexão restabelecida! Sincronizando coletas pendentes...', 'success', 3000);
     syncAllPending();
   }
 
@@ -579,7 +635,7 @@
     showToast('Aparelho sem conexão. Ativando modo Offline-First na beira da lagoa.', 'warning', 4000);
   }
 
-  // 12. Feedback Toast Flutuante
+  // 13. Toast Feedback
   let toastTimer = null;
   function showToast(message, type = 'success', duration = 3000) {
     if (!DOM.toastAlert) return;
@@ -594,11 +650,16 @@
     }, duration);
   }
 
-  // 13. Event Listeners e Configuração
+  // 14. Event Listeners
   function setupEventListeners() {
     // Clique no mapa da lagoa
     if (DOM.fieldMapContainer) {
       DOM.fieldMapContainer.addEventListener('click', handleMapClick);
+    }
+
+    // Alternar camada do mapa
+    if (DOM.btnToggleFieldLayer) {
+      DOM.btnToggleFieldLayer.addEventListener('click', toggleFieldLayer);
     }
 
     // Botão GPS
@@ -617,10 +678,16 @@
       });
     }
 
-    // Validação estrita de pH em tempo real
+    // Escala Colorimétrica Dinâmica de pH em tempo real
     if (DOM.inputPh) {
-      DOM.inputPh.addEventListener('input', validatePhStrict);
-      DOM.inputPh.addEventListener('blur', validatePhStrict);
+      DOM.inputPh.addEventListener('input', updatePhColorimetricScale);
+      DOM.inputPh.addEventListener('change', updatePhColorimetricScale);
+      DOM.inputPh.addEventListener('blur', updatePhColorimetricScale);
+    }
+
+    // Feedback dinâmico de Turbidez
+    if (DOM.inputTurbidity) {
+      DOM.inputTurbidity.addEventListener('input', updateTurbidityFeedback);
     }
 
     // Upload e foto da amostra
@@ -643,13 +710,14 @@
       DOM.form.addEventListener('submit', handleFormSubmit);
     }
 
-    // Botão Limpar Formulário
+    // Limpar Formulário
     if (DOM.btnResetForm) {
       DOM.btnResetForm.addEventListener('click', () => {
         if (confirm('Deseja limpar todos os campos do formulário de coleta?')) {
           DOM.form.reset();
           removePhoto();
-          clearPhError();
+          updatePhColorimetricScale();
+          updateTurbidityFeedback();
           refreshTimestamp();
           if (PRESET_POINTS.P1) {
             updateMapCoordinates(PRESET_POINTS.P1.lat, PRESET_POINTS.P1.lng, PRESET_POINTS.P1.xPercent, PRESET_POINTS.P1.yPercent);
@@ -662,14 +730,14 @@
     if (DOM.btnManualSync) {
       DOM.btnManualSync.addEventListener('click', () => {
         if (!state.isOnline) {
-          showToast('Dispositivo sem conexão de rede. Conecte-se para sincronizar.', 'warning');
+          showToast('Dispositivo sem conexão. Conecte-se para sincronizar.', 'warning');
           return;
         }
         syncAllPending();
       });
     }
 
-    // Limpar fila offline de coletas sincronizadas
+    // Limpar fila offline
     if (DOM.btnClearQueue) {
       DOM.btnClearQueue.addEventListener('click', () => {
         const pendingCount = state.offlineQueue.filter(i => i.syncStatus === 'pending').length;
@@ -684,16 +752,20 @@
       });
     }
 
-    // Eventos de conectividade do navegador
+    // Eventos de rede do navegador
     window.addEventListener('online', handleOnlineEvent);
     window.addEventListener('offline', handleOfflineEvent);
   }
 
-  // 14. Inicialização do Módulo Especialista
+  // 15. Bootstrap
   function bootstrap() {
     refreshTimestamp();
     loadOfflineQueue();
     setupEventListeners();
+
+    // Inicializa a escala colorimétrica com o valor padrão (7.25)
+    updatePhColorimetricScale();
+    updateTurbidityFeedback();
 
     // Posiciona no Ponto 1 por padrão
     if (PRESET_POINTS.P1) {

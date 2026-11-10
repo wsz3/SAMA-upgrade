@@ -1,12 +1,17 @@
 /**
  * ============================================================================
  * SAMA - Sistema Autônomo de Monitoramento Ambiental (Lagoa da Chapadinha)
- * VISÃO PÚBLICA (Cidadão) - public.js (HOTFIX Mobile & Desktop)
+ * VISÃO PÚBLICA (Cidadão) - public.js
  *
  * Módulo isolado (IIFE) sem vazamento de escopo global.
- * Implementa a Lógica Semafórica de Pior Cenário, renderizador nativo em Canvas
- * para histórico de 30 dias, Bottom Sheet responsivo sem overlay escuro bloqueante,
- * fechamento instantâneo do card e controle de acesso com senha para o Especialista.
+ * Implementa:
+ * - Posicionamento calibrado na foto horizontal de satélite (lagoa-completa.png)
+ * - Alternância de camadas (Satélite Completo ⇄ Lâmina D'água Isolada)
+ * - Avaliação Semafórica Estrita pelo Critério do Pior Cenário (CONAMA 357)
+ * - Bottom Sheet Mobile sem nenhum overlay/backdrop escuro bloqueante
+ * - Fechamento imediato com display = 'none' ao tocar no botão "X"
+ * - Gráfico histórico de 30 dias renderizado em Canvas 2D nativo
+ * - Controle de acesso com modal de senha para a Visão Especialista
  * ============================================================================
  */
 (function () {
@@ -28,15 +33,15 @@
   const STORAGE_KEY_POINTS = 'SAMA_MONITORAMENTO_DB';
 
   // 2. Base de Dados Inicial dos Pontos de Monitoramento da Lagoa da Chapadinha
-  // Coordenadas calibradas na foto real de satélite
+  // Coordenadas percentuais rigorosamente calculadas para ficarem 100% sobre a lâmina d'água
   const INITIAL_POINTS = [
     {
       id: 'P1',
       code: 'P1',
-      name: 'Foz Norte / Cabeceira da Lagoa',
+      name: 'Foz Oeste / Entrada das Águas',
       coordsDesc: '10°04\'28\'\' S, 44°17\'52\'\' W',
-      xPercent: 33.0, // Cabeceira da lâmina d'água ao norte
-      yPercent: 12.0,
+      xPercent: 14.0, // Entrada fluvial a oeste (Água: 52% a 89.7%)
+      yPercent: 70.0,
       lastUpdate: 'Hoje, 09:30',
       operator: 'Bióloga Marina Costa (SAMA)',
       current: {
@@ -58,10 +63,10 @@
     {
       id: 'P2',
       code: 'P2',
-      name: 'Orla Leste / Parque Regina Freire',
+      name: 'Margem Norte / Parque Regina Freire',
       coordsDesc: '10°04\'42\'\' S, 44°17\'30\'\' W',
-      xPercent: 64.0, // Próximo às tendas e área de eventos do Parque Regina Freire
-      yPercent: 35.0,
+      xPercent: 32.0, // Em frente ao deque e tendas do parque (Água: 46% a 90%)
+      yPercent: 64.0,
       lastUpdate: 'Hoje, 08:45',
       operator: 'Eng. Renato Salles (SAMA)',
       current: {
@@ -83,10 +88,10 @@
     {
       id: 'P3',
       code: 'P3',
-      name: 'Lâmina Central / Águas Abertas',
+      name: 'Lâmina Central / Águas Profundas',
       coordsDesc: '10°04\'50\'\' S, 44°17\'42\'\' W',
-      xPercent: 44.0, // Centro da lâmina de água
-      yPercent: 46.0,
+      xPercent: 52.0, // Centro da bacia hidrográfica (Água: 27% a 93%)
+      yPercent: 60.0,
       lastUpdate: 'Hoje, 10:15',
       operator: 'Téc. Carlos Eduardo (SAMA)',
       current: {
@@ -108,10 +113,10 @@
     {
       id: 'P4',
       code: 'P4',
-      name: 'Margem Oeste / Orla Urbana',
+      name: 'Enseada Nordeste / Macrófitas',
       coordsDesc: '10°04\'58\'\' S, 44°17\'55\'\' W',
-      xPercent: 30.0, // Margem residencial / pista oeste
-      yPercent: 58.0,
+      xPercent: 72.0, // Zona de maior largura e vegetação aquática (Água: 12% a 92%)
+      yPercent: 48.0,
       lastUpdate: 'Hoje, 09:10',
       operator: 'Bióloga Marina Costa (SAMA)',
       current: {
@@ -133,10 +138,10 @@
     {
       id: 'P5',
       code: 'P5',
-      name: 'Vertedouro Sul / Zona de Macrófitas',
+      name: 'Foz Leste / Vertedouro Sul',
       coordsDesc: '10°05\'15\'\' S, 44°17\'35\'\' W',
-      xPercent: 58.0, // Extremidade sul da lagoa
-      yPercent: 82.0,
+      xPercent: 85.0, // Saída d'água a leste (Água: 28% a 86%)
+      yPercent: 58.0,
       lastUpdate: 'Hoje, 08:00',
       operator: 'Eng. Renato Salles (SAMA)',
       current: {
@@ -179,7 +184,7 @@
     return list;
   }
 
-  // 3. REGRA DE NEGÓCIO: Avaliação do Pior Cenário (Worst-Case Scenario)
+  // 3. REGRA DE NEGÓCIO: Avaliação Estrita do Pior Cenário (Worst-Case Scenario)
   function evaluateWorstCaseStatus(p) {
     const criticalViolations = [];
     const warningViolations = [];
@@ -197,7 +202,7 @@
     // --- B. Parâmetro Biológico: E. coli (Balneabilidade) ---
     let bioStatus = 'green';
     if (p.eColi > THRESHOLDS.eColi.criticalMax) {
-      criticalViolations.push(`Contaminação Biológica Severa: E. coli (${p.eColi} NMP/100mL > limite máx. de 1.000)`);
+      criticalViolations.push(`Contaminação Biológica Severa: E. coli (${p.eColi} NMP/100mL > limite de 1.000)`);
       bioStatus = 'red';
     } else if (p.eColi > THRESHOLDS.eColi.idealMax) {
       warningViolations.push(`E. coli em Alerta (${p.eColi} NMP/100mL)`);
@@ -272,7 +277,8 @@
     selectedPoint: null,
     activeFilter: 'all',
     activeChartMetric: 'turbidity',
-    zoomLevel: 1.0
+    zoomLevel: 1.0,
+    currentMapLayer: 'complete' // 'complete' | 'isolated'
   };
 
   // 5. Elementos DOM da Interface
@@ -283,8 +289,14 @@
     drawerBackdrop: document.getElementById('drawerBackdrop'),
     drawerPointsList: document.getElementById('drawerPointsList'),
     filterButtons: document.querySelectorAll('.filter-btn'),
+    
+    // Mapa e Camadas
+    mapViewport: document.getElementById('mapViewport'),
     pinsLayer: document.getElementById('pinsLayer'),
     mapCanvasWrapper: document.getElementById('mapCanvasWrapper'),
+    mapImage: document.getElementById('mapImage'),
+    btnLayerComplete: document.getElementById('btnLayerComplete'),
+    btnLayerIsolated: document.getElementById('btnLayerIsolated'),
     btnZoomIn: document.getElementById('btnZoomIn'),
     btnZoomOut: document.getElementById('btnZoomOut'),
     btnZoomReset: document.getElementById('btnZoomReset'),
@@ -351,6 +363,7 @@
       const stored = localStorage.getItem(STORAGE_KEY_POINTS);
       if (stored) {
         state.points = JSON.parse(stored);
+        // Atualiza pontos com as coordenadas calibradas na imagem horizontal
         state.points.forEach(pt => {
           const initMatch = INITIAL_POINTS.find(i => i.id === pt.id || i.code === pt.code);
           if (initMatch) {
@@ -540,7 +553,7 @@
     DOM.valTemp.textContent = curr.waterTemp.toFixed(1);
     DOM.valPhosphorus.textContent = curr.totalPhosphorus.toFixed(3);
 
-    // HOTFIX: Exibe explicitamente o card sem nenhum overlay/backdrop escuro bloqueante
+    // Exibe explicitamente o card sem nenhum overlay/backdrop escuro bloqueante
     if (DOM.floatingCard) {
       DOM.floatingCard.removeAttribute('hidden');
       DOM.floatingCard.style.display = 'flex';
@@ -551,7 +564,7 @@
     renderCanvasChart();
   }
 
-  // HOTFIX: FECHAMENTO EXPLICITO COM display = 'none' PARA DESOBSTRUIR O MAPA
+  // FECHAMENTO EXPLICITO COM display = 'none' PARA DESOBSTRUIR O MAPA
   function closeCard() {
     if (DOM.floatingCard) {
       DOM.floatingCard.style.display = 'none';
@@ -648,384 +661,315 @@
     const padBottom = 26;
     const padLeft = 42;
     const padRight = 16;
-    const plotW = width - padLeft - padRight;
-    const plotH = height - padTop - padBottom;
+    const chartW = width - padLeft - padRight;
+    const chartH = height - padTop - padBottom;
 
-    let yMin = Math.min(minVal, limitVal !== null ? limitVal : minVal);
-    let yMax = Math.max(maxVal, limitVal !== null ? limitVal : maxVal);
-    const span = yMax - yMin || 1;
-    yMin = Math.max(0, yMin - span * 0.15);
-    yMax = yMax + span * 0.15;
-
-    function getY(val) {
-      return padTop + plotH - ((val - yMin) / (yMax - yMin)) * plotH;
+    let yMin = Math.min(minVal, limitVal !== null ? limitVal * 0.7 : minVal);
+    let yMax = Math.max(maxVal, limitVal !== null ? limitVal * 1.3 : maxVal);
+    if (yMin === yMax) {
+      yMin *= 0.8;
+      yMax *= 1.2;
     }
+    const yRange = yMax - yMin;
 
-    function getX(index) {
-      return padLeft + (index / (dataVals.length - 1)) * plotW;
-    }
-
-    // Linhas de Grade Horizontais
+    // Linhas de Grade e Eixo Y
     ctx.strokeStyle = '#e2e8f0';
     ctx.lineWidth = 1;
-    ctx.setLineDash([3, 3]);
-
-    const gridSteps = 3;
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = '10px system-ui, sans-serif';
+    ctx.font = '10px sans-serif';
+    ctx.fillStyle = '#64748b';
     ctx.textAlign = 'right';
-    ctx.textBaseline = 'middle';
 
-    for (let i = 0; i <= gridSteps; i++) {
-      const gVal = yMin + (span / gridSteps) * i;
-      const gy = getY(gVal);
+    const gridLines = 3;
+    for (let i = 0; i <= gridLines; i++) {
+      const y = padTop + (chartH / gridLines) * i;
+      const v = yMax - (yRange / gridLines) * i;
       ctx.beginPath();
-      ctx.moveTo(padLeft, gy);
-      ctx.lineTo(width - padRight, gy);
+      ctx.moveTo(padLeft, y);
+      ctx.lineTo(width - padRight, y);
       ctx.stroke();
-      ctx.fillText(gVal.toFixed(1), padLeft - 6, gy);
+      ctx.fillText(v.toFixed(1), padLeft - 6, y + 3);
     }
 
-    // Linha de Limite Regulatório CONAMA
+    // Linha de Limite Regulatório (CONAMA 357)
     if (limitVal !== null && limitVal >= yMin && limitVal <= yMax) {
-      const limitY = getY(limitVal);
-      ctx.save();
+      const limitY = padTop + chartH - ((limitVal - yMin) / yRange) * chartH;
       ctx.strokeStyle = '#ef4444';
       ctx.lineWidth = 1.5;
-      ctx.setLineDash([5, 4]);
+      ctx.setLineDash([4, 4]);
       ctx.beginPath();
       ctx.moveTo(padLeft, limitY);
       ctx.lineTo(width - padRight, limitY);
       ctx.stroke();
+      ctx.setLineDash([]);
 
       ctx.fillStyle = '#ef4444';
-      ctx.font = 'bold 9px system-ui, sans-serif';
-      ctx.textAlign = 'right';
-      ctx.fillText(`Ref: ${limitVal}`, width - padRight, limitY - 6);
-      ctx.restore();
+      ctx.textAlign = 'left';
+      ctx.fillText(`Meta CONAMA (${limitVal})`, padLeft + 6, limitY - 4);
     }
 
-    // Área com Gradiente
-    ctx.setLineDash([]);
-    const gradient = ctx.createLinearGradient(0, padTop, 0, padTop + plotH);
+    // Coordenadas dos Pontos da Série
+    chartPointsCoords = [];
+    const stepX = chartW / (dataVals.length - 1);
+
+    for (let i = 0; i < dataVals.length; i++) {
+      const x = padLeft + i * stepX;
+      const y = padTop + chartH - ((dataVals[i] - yMin) / yRange) * chartH;
+      chartPointsCoords.push({
+        x: x,
+        y: y,
+        val: dataVals[i],
+        date: history[i].date,
+        metric: metricTitle,
+        unit: unit
+      });
+    }
+
+    // Área sob a curva com gradiente
+    const gradient = ctx.createLinearGradient(0, padTop, 0, padTop + chartH);
     gradient.addColorStop(0, gradientStart);
-    gradient.addColorStop(1, 'rgba(255, 255, 255, 0.0)');
+    gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
 
     ctx.beginPath();
-    ctx.moveTo(getX(0), getY(dataVals[0]));
-    for (let i = 1; i < dataVals.length; i++) {
-      ctx.lineTo(getX(i), getY(dataVals[i]));
+    ctx.moveTo(chartPointsCoords[0].x, padTop + chartH);
+    for (let i = 0; i < chartPointsCoords.length; i++) {
+      ctx.lineTo(chartPointsCoords[i].x, chartPointsCoords[i].y);
     }
-    ctx.lineTo(getX(dataVals.length - 1), padTop + plotH);
-    ctx.lineTo(getX(0), padTop + plotH);
+    ctx.lineTo(chartPointsCoords[chartPointsCoords.length - 1].x, padTop + chartH);
     ctx.closePath();
     ctx.fillStyle = gradient;
     ctx.fill();
 
-    // Linha Principal de Tendência
-    ctx.beginPath();
-    ctx.moveTo(getX(0), getY(dataVals[0]));
-    chartPointsCoords = [];
-
-    for (let i = 0; i < dataVals.length; i++) {
-      const cx = getX(i);
-      const cy = getY(dataVals[i]);
-      chartPointsCoords.push({
-        x: cx,
-        y: cy,
-        val: dataVals[i],
-        date: history[i].date,
-        dayOffset: history[i].dayOffset
-      });
-
-      if (i > 0) ctx.lineTo(cx, cy);
-    }
-
+    // Linha Principal da Série
     ctx.strokeStyle = lineColor;
-    ctx.lineWidth = 2.2;
+    ctx.lineWidth = 2.5;
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    for (let i = 0; i < chartPointsCoords.length; i++) {
+      if (i === 0) ctx.moveTo(chartPointsCoords[i].x, chartPointsCoords[i].y);
+      else ctx.lineTo(chartPointsCoords[i].x, chartPointsCoords[i].y);
+    }
     ctx.stroke();
 
-    // Marcadores dos Pontos
-    chartPointsCoords.forEach((pt, idx) => {
-      if (idx === 0 || idx === chartPointsCoords.length - 1 || idx % 7 === 0) {
-        ctx.beginPath();
-        ctx.arc(pt.x, pt.y, 3.5, 0, Math.PI * 2);
-        ctx.fillStyle = '#ffffff';
-        ctx.fill();
-        ctx.strokeStyle = lineColor;
-        ctx.lineWidth = 2;
-        ctx.stroke();
-      }
+    // Destaque nos pontos de início e fim
+    [chartPointsCoords[0], chartPointsCoords[chartPointsCoords.length - 1]].forEach(pt => {
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = lineColor;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
     });
 
-    // Rótulos de Data
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = '10px system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-
-    const firstPt = chartPointsCoords[0];
-    const midPt = chartPointsCoords[Math.floor(chartPointsCoords.length / 2)];
-    const lastPt = chartPointsCoords[chartPointsCoords.length - 1];
-
-    if (firstPt) ctx.fillText(`-30d (${firstPt.date})`, firstPt.x + 12, padTop + plotH + 8);
-    if (midPt) ctx.fillText(`-15d (${midPt.date})`, midPt.x, padTop + plotH + 8);
-    if (lastPt) ctx.fillText(`Hoje (${lastPt.date})`, lastPt.x - 12, padTop + plotH + 8);
+    // Rótulos do Eixo X (Datas: 30d atrás e Hoje)
+    ctx.fillStyle = '#64748b';
+    ctx.textAlign = 'left';
+    ctx.fillText(history[0].date, padLeft, height - 8);
+    ctx.textAlign = 'right';
+    ctx.fillText('Hoje', width - padRight, height - 8);
   }
 
-  function setupCanvasTooltip() {
-    const canvas = DOM.miniTrendCanvas;
-    const tooltip = DOM.chartTooltip;
-    if (!canvas || !tooltip) return;
+  // Interação de Hover / Toque no Gráfico (Tooltip)
+  function handleChartInteraction(e) {
+    if (!DOM.miniTrendCanvas || chartPointsCoords.length === 0) return;
 
-    function handlePointerMove(e) {
-      const rect = canvas.getBoundingClientRect();
-      const mouseX = e.clientX - rect.left;
-      const mouseY = e.clientY - rect.top;
+    const rect = DOM.miniTrendCanvas.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const mouseX = clientX - rect.left;
 
-      if (!chartPointsCoords || chartPointsCoords.length === 0) return;
+    let closest = null;
+    let minDiff = Infinity;
 
-      let closest = chartPointsCoords[0];
-      let minDiff = Math.abs(mouseX - closest.x);
-
-      for (let i = 1; i < chartPointsCoords.length; i++) {
-        const diff = Math.abs(mouseX - chartPointsCoords[i].x);
-        if (diff < minDiff) {
-          minDiff = diff;
-          closest = chartPointsCoords[i];
-        }
-      }
-
-      if (minDiff < 30) {
-        const metric = state.activeChartMetric;
-        let unit = metric === 'turbidity' ? 'NTU' : metric === 'eColi' ? 'NMP' : metric === 'od' ? 'mg/L' : '';
-        tooltip.innerHTML = `<strong>${closest.date}</strong>: ${closest.val} ${unit}`;
-        tooltip.style.left = `${closest.x}px`;
-        tooltip.style.top = `${closest.y}px`;
-        tooltip.hidden = false;
-      } else {
-        tooltip.hidden = true;
+    for (const pt of chartPointsCoords) {
+      const diff = Math.abs(pt.x - mouseX);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closest = pt;
       }
     }
 
-    canvas.addEventListener('mousemove', handlePointerMove);
-    canvas.addEventListener('mouseleave', () => { tooltip.hidden = true; });
-
-    canvas.addEventListener('touchmove', (e) => {
-      if (e.touches && e.touches[0]) {
-        handlePointerMove(e.touches[0]);
-      }
-    }, { passive: true });
-
-    canvas.addEventListener('touchend', () => { tooltip.hidden = true; });
-  }
-
-  // 11. CONTROLE DE ACESSO COM SENHA PARA O ESPECIALISTA
-  function openAuthModal() {
-    if (!DOM.authModal) return;
-    DOM.authModal.hidden = false;
-    if (DOM.authBackdrop) DOM.authBackdrop.hidden = false;
-    clearAuthError();
-    if (DOM.operatorPasswordInput) {
-      DOM.operatorPasswordInput.value = '';
-      DOM.operatorPasswordInput.type = 'password';
-      setTimeout(() => DOM.operatorPasswordInput.focus(), 120);
-    }
-  }
-
-  function closeAuthModal() {
-    if (DOM.authModal) {
-      DOM.authModal.hidden = true;
-      DOM.authModal.classList.remove('shake');
-    }
-    if (DOM.authBackdrop) DOM.authBackdrop.hidden = true;
-  }
-
-  function handleAuthSubmit(e) {
-    e.preventDefault();
-    const pwd = DOM.operatorPasswordInput ? DOM.operatorPasswordInput.value.trim() : '';
-
-    if (VALID_PASSWORDS.includes(pwd)) {
-      clearAuthError();
-      const submitBtn = DOM.authForm ? DOM.authForm.querySelector('.btn-auth-submit') : null;
-      if (submitBtn) {
-        submitBtn.innerHTML = `<span>&#10003; Acesso Autorizado! Entrando...</span>`;
-        submitBtn.style.backgroundColor = '#16a34a';
-      }
-      setTimeout(() => {
-        window.location.href = 'especialista.html';
-      }, 500);
+    if (closest && minDiff < 20) {
+      DOM.chartTooltip.hidden = false;
+      DOM.chartTooltip.style.left = `${closest.x}px`;
+      DOM.chartTooltip.style.top = `${closest.y}px`;
+      DOM.chartTooltip.innerHTML = `<strong>${closest.val.toFixed(1)} ${closest.unit}</strong><br><small>${closest.date}</small>`;
     } else {
-      showAuthError('Senha incorreta. Código do operador não autorizado.');
-      if (DOM.authModal) {
-        DOM.authModal.classList.remove('shake');
-        void DOM.authModal.offsetWidth;
-        DOM.authModal.classList.add('shake');
-      }
-      if (DOM.operatorPasswordInput) {
-        DOM.operatorPasswordInput.focus();
-        DOM.operatorPasswordInput.select();
-      }
+      DOM.chartTooltip.hidden = true;
     }
   }
 
-  function showAuthError(msg) {
-    if (DOM.authFieldGroup) DOM.authFieldGroup.classList.add('has-error');
-    if (DOM.authErrorMsg) {
-      DOM.authErrorMsg.hidden = false;
-      if (DOM.authErrorText) DOM.authErrorText.textContent = msg;
-    }
-  }
-
-  function clearAuthError() {
-    if (DOM.authFieldGroup) DOM.authFieldGroup.classList.remove('has-error');
-    if (DOM.authErrorMsg) DOM.authErrorMsg.hidden = true;
-  }
-
-  function togglePasswordVisibility() {
-    if (!DOM.operatorPasswordInput) return;
-    const isPwd = DOM.operatorPasswordInput.type === 'password';
-    DOM.operatorPasswordInput.type = isPwd ? 'text' : 'password';
-    if (DOM.btnTogglePassword) {
-      DOM.btnTogglePassword.title = isPwd ? 'Ocultar senha' : 'Ver senha';
-    }
-  }
-
-  // 12. Controles do Menu Lateral
-  function openDrawer() {
-    DOM.sideDrawer.classList.add('active');
-    DOM.drawerBackdrop.classList.add('active');
-    DOM.sideDrawer.setAttribute('aria-hidden', 'false');
-    DOM.btnToggleDrawer.setAttribute('aria-expanded', 'true');
-  }
-
-  function closeDrawer() {
-    DOM.sideDrawer.classList.remove('active');
-    DOM.drawerBackdrop.classList.remove('active');
-    DOM.sideDrawer.setAttribute('aria-hidden', 'true');
-    DOM.btnToggleDrawer.setAttribute('aria-expanded', 'false');
-  }
-
-  // 13. Controles de Zoom do Mapa
-  function applyZoom(newZoom) {
-    state.zoomLevel = Math.min(2.5, Math.max(1.0, newZoom));
+  // 11. Controle de Zoom e Alternância de Camadas da Lagoa
+  function setZoom(level) {
+    state.zoomLevel = Math.max(0.9, Math.min(2.5, level));
     if (DOM.mapCanvasWrapper) {
       DOM.mapCanvasWrapper.style.transform = `scale(${state.zoomLevel})`;
     }
   }
 
-  // 14. Event Listeners e Inicialização
-  function setupEventListeners() {
-    // Menu Drawer
-    DOM.btnToggleDrawer.addEventListener('click', openDrawer);
-    DOM.btnCloseDrawer.addEventListener('click', closeDrawer);
-    DOM.drawerBackdrop.addEventListener('click', closeDrawer);
+  function setMapLayer(layer) {
+    state.currentMapLayer = layer;
+    if (layer === 'isolated') {
+      DOM.mapImage.src = 'lagoa-isolada.png';
+      DOM.btnLayerIsolated.classList.add('active');
+      DOM.btnLayerComplete.classList.remove('active');
+    } else {
+      DOM.mapImage.src = 'lagoa-completa.png';
+      DOM.btnLayerComplete.classList.add('active');
+      DOM.btnLayerIsolated.classList.remove('active');
+    }
+  }
 
-    // HOTFIX: Fechar Card de Diagnóstico no botão "X" explicitamente
+  // 12. Funções do Menu Lateral (Drawer)
+  function openDrawer() {
+    DOM.sideDrawer.classList.add('active');
+    DOM.drawerBackdrop.classList.add('active');
+    DOM.btnToggleDrawer.setAttribute('aria-expanded', 'true');
+    DOM.sideDrawer.setAttribute('aria-hidden', 'false');
+  }
+
+  function closeDrawer() {
+    DOM.sideDrawer.classList.remove('active');
+    DOM.drawerBackdrop.classList.remove('active');
+    DOM.btnToggleDrawer.setAttribute('aria-expanded', 'false');
+    DOM.sideDrawer.setAttribute('aria-hidden', 'true');
+  }
+
+  // 13. Controle de Acesso por Senha para o Especialista
+  function openAuthModal() {
+    closeDrawer();
+    DOM.authBackdrop.hidden = false;
+    DOM.authModal.hidden = false;
+    DOM.operatorPasswordInput.value = '';
+    clearAuthError();
+    setTimeout(() => DOM.operatorPasswordInput.focus(), 100);
+  }
+
+  function closeAuthModal() {
+    DOM.authBackdrop.hidden = true;
+    DOM.authModal.hidden = true;
+    clearAuthError();
+  }
+
+  function showAuthError(msg) {
+    DOM.authErrorMsg.hidden = false;
+    DOM.authErrorText.textContent = msg;
+    DOM.operatorPasswordInput.focus();
+    DOM.operatorPasswordInput.style.borderColor = 'var(--status-red)';
+  }
+
+  function clearAuthError() {
+    DOM.authErrorMsg.hidden = true;
+    DOM.operatorPasswordInput.style.borderColor = '';
+  }
+
+  function handleAuthSubmit(e) {
+    e.preventDefault();
+    const entered = DOM.operatorPasswordInput.value.trim();
+
+    if (!entered) {
+      showAuthError('Informe a senha de operador.');
+      return;
+    }
+
+    if (VALID_PASSWORDS.includes(entered.toLowerCase())) {
+      // Redireciona para o terminal de campo do especialista
+      window.location.href = 'especialista.html';
+    } else {
+      showAuthError('Código/Senha incorreta. Acesso não autorizado.');
+    }
+  }
+
+  // 14. Event Listeners e Configurações
+  function setupEventListeners() {
+    // Menu Lateral
+    if (DOM.btnToggleDrawer) DOM.btnToggleDrawer.addEventListener('click', openDrawer);
+    if (DOM.btnCloseDrawer) DOM.btnCloseDrawer.addEventListener('click', closeDrawer);
+    if (DOM.drawerBackdrop) DOM.drawerBackdrop.addEventListener('click', closeDrawer);
+
+    // Fechar Card Flutuante com o botão "X"
     if (DOM.btnCloseCard) {
       DOM.btnCloseCard.addEventListener('click', (e) => {
         e.stopPropagation();
-        e.preventDefault();
         closeCard();
       });
     }
 
-    // Modal de Autenticação para Especialista
-    if (DOM.btnOpenAuthModal) {
-      DOM.btnOpenAuthModal.addEventListener('click', (e) => {
-        e.preventDefault();
-        openAuthModal();
-      });
+    // Alternador de Camadas da Lagoa
+    if (DOM.btnLayerComplete) {
+      DOM.btnLayerComplete.addEventListener('click', () => setMapLayer('complete'));
+    }
+    if (DOM.btnLayerIsolated) {
+      DOM.btnLayerIsolated.addEventListener('click', () => setMapLayer('isolated'));
     }
 
-    if (DOM.btnDrawerOpenAuth) {
-      DOM.btnDrawerOpenAuth.addEventListener('click', (e) => {
-        e.preventDefault();
-        closeDrawer();
-        openAuthModal();
-      });
-    }
+    // Zoom do Mapa
+    if (DOM.btnZoomIn) DOM.btnZoomIn.addEventListener('click', () => setZoom(state.zoomLevel + 0.2));
+    if (DOM.btnZoomOut) DOM.btnZoomOut.addEventListener('click', () => setZoom(state.zoomLevel - 0.2));
+    if (DOM.btnZoomReset) DOM.btnZoomReset.addEventListener('click', () => setZoom(1.0));
 
-    if (DOM.btnCloseAuth) DOM.btnCloseAuth.addEventListener('click', closeAuthModal);
-    if (DOM.btnCancelAuth) DOM.btnCancelAuth.addEventListener('click', closeAuthModal);
-    if (DOM.authBackdrop) DOM.authBackdrop.addEventListener('click', closeAuthModal);
-    if (DOM.authForm) DOM.authForm.addEventListener('submit', handleAuthSubmit);
-    if (DOM.btnTogglePassword) DOM.btnTogglePassword.addEventListener('click', togglePasswordVisibility);
-
-    // Filtros Semafóricos no Drawer
+    // Filtros de Pontos
     DOM.filterButtons.forEach(btn => {
       btn.addEventListener('click', () => {
         DOM.filterButtons.forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        state.activeFilter = btn.getAttribute('data-filter') || 'all';
+        state.activeFilter = btn.getAttribute('data-filter');
         renderMapPins();
       });
     });
 
-    // Abas de Parâmetros do Mini-Gráfico
+    // Abas do Gráfico Histórico
     DOM.chartTabs.forEach(tab => {
       tab.addEventListener('click', () => {
-        DOM.chartTabs.forEach(t => {
-          t.classList.remove('active');
-          t.setAttribute('aria-selected', 'false');
-        });
+        DOM.chartTabs.forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
-        tab.setAttribute('aria-selected', 'true');
-        state.activeChartMetric = tab.getAttribute('data-chart-metric') || 'turbidity';
+        state.activeChartMetric = tab.getAttribute('data-chart-metric');
         renderCanvasChart();
       });
     });
 
-    // Controles de Zoom
-    DOM.btnZoomIn.addEventListener('click', () => applyZoom(state.zoomLevel + 0.25));
-    DOM.btnZoomOut.addEventListener('click', () => applyZoom(state.zoomLevel - 0.25));
-    DOM.btnZoomReset.addEventListener('click', () => applyZoom(1.0));
+    // Tooltip no Canvas
+    if (DOM.miniTrendCanvas) {
+      DOM.miniTrendCanvas.addEventListener('mousemove', handleChartInteraction);
+      DOM.miniTrendCanvas.addEventListener('mouseleave', () => {
+        if (DOM.chartTooltip) DOM.chartTooltip.hidden = true;
+      });
+      DOM.miniTrendCanvas.addEventListener('touchstart', handleChartInteraction, { passive: true });
+      DOM.miniTrendCanvas.addEventListener('touchmove', handleChartInteraction, { passive: true });
+    }
 
-    // Tecla Escape fecha modais e cards
-    window.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        closeCard();
-        closeDrawer();
-        closeAuthModal();
-      }
-    });
+    // Modal de Autenticação para Especialista
+    if (DOM.btnOpenAuthModal) DOM.btnOpenAuthModal.addEventListener('click', openAuthModal);
+    if (DOM.btnDrawerOpenAuth) DOM.btnDrawerOpenAuth.addEventListener('click', openAuthModal);
+    if (DOM.btnCloseAuth) DOM.btnCloseAuth.addEventListener('click', closeAuthModal);
+    if (DOM.btnCancelAuth) DOM.btnCancelAuth.addEventListener('click', closeAuthModal);
+    if (DOM.authBackdrop) DOM.authBackdrop.addEventListener('click', closeAuthModal);
+    if (DOM.authForm) DOM.authForm.addEventListener('submit', handleAuthSubmit);
 
-    // Redimensionamento
+    // Alternar visibilidade da senha
+    if (DOM.btnTogglePassword) {
+      DOM.btnTogglePassword.addEventListener('click', () => {
+        const isPwd = DOM.operatorPasswordInput.type === 'password';
+        DOM.operatorPasswordInput.type = isPwd ? 'text' : 'password';
+      });
+    }
+
+    // Redimensionamento de Janela (ajuste do gráfico)
     window.addEventListener('resize', () => {
-      if (state.selectedPoint) {
-        renderCanvasChart();
-      }
-    });
-
-    setupCanvasTooltip();
-
-    // Sincronização passiva com o LocalStorage
-    window.addEventListener('storage', (e) => {
-      if (e.key === STORAGE_KEY_POINTS) {
-        initDatabase();
-        renderMapPins();
-        renderDrawerInfo();
-        if (state.selectedPoint) {
-          selectPoint(state.selectedPoint.id);
-        }
-      }
+      if (state.selectedPoint) renderCanvasChart();
     });
   }
 
-  // 15. Inicialização do Módulo Público
+  // 15. Inicialização da Aplicação (Bootstrap)
   function bootstrap() {
     initDatabase();
     renderMapPins();
     renderDrawerInfo();
     setupEventListeners();
 
-    // HOTFIX: No mobile, NUNCA abre o card automaticamente na carga inicial
-    // para não tampar o mapa e deixar o usuário explorar livremente!
-    // Apenas em desktop (>= 1024px) abre o P1 no painel lateral
-    if (window.innerWidth >= 1024) {
-      setTimeout(() => {
-        selectPoint('P1');
-      }, 300);
+    // No desktop, abre o ponto P1 por padrão para preencher a tela
+    if (window.innerWidth >= 1024 && state.points.length > 0) {
+      selectPoint('P1');
     }
   }
 

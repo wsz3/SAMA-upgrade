@@ -2,14 +2,16 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="description" content="SAMA Campo - Terminal do Operador de Coleta Hídrica na Lagoa da Chapadinha. Sistema Offline-First com ergonomia mobile avançada.">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+  <meta name="description" content="SAMA Campo - Terminal do Operador de Coleta Hídrica na Lagoa da Chapadinha. Sistema Offline-First com ergonomia mobile avançada e escala colorimétrica dinâmica de pH.">
   <meta name="theme-color" content="#0f766e">
   <title>SAMA Campo | Terminal do Especialista - Lagoa da Chapadinha</title>
   <link rel="stylesheet" href="especialista.css">
 </head>
 <body>
-  <!-- Header de Campo (Alto Contraste & Ergonomia Beira da Lagoa) -->
+  <!-- =========================================================================
+       1. HEADER DE CAMPO (ALTO CONTRASTE & ERGONOMIA NA BEIRA DA LAGOA)
+       ========================================================================= -->
   <header class="field-header">
     <div class="field-header-main">
       <a href="index.html" class="back-link" title="Voltar para a Visão Pública (Cidadão)">
@@ -22,11 +24,11 @@
 
       <div class="field-title-group">
         <h1 class="field-title">SAMA Campo</h1>
-        <span class="field-subtitle">Operador de Coleta</span>
+        <span class="field-subtitle">Terminal do Operador</span>
       </div>
 
       <!-- Indicador Dinâmico de Conexão Offline / Online -->
-      <div class="network-badge" id="networkBadge" title="Status da conexão com a rede">
+      <div class="network-badge" id="networkBadge" title="Status da conexão de rede">
         <span class="network-dot" id="networkDot"></span>
         <span class="network-label" id="networkLabel">Online</span>
       </div>
@@ -41,48 +43,61 @@
       <div class="sync-actions">
         <span class="pending-pill" id="pendingCounterBadge">0 pendentes</span>
         <button type="button" id="btnManualSync" class="btn-sync-action" title="Forçar sincronização com o banco central">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" class="sync-rotate-icon">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" class="sync-rotate-icon" aria-hidden="true">
             <polyline points="23 4 23 10 17 10"></polyline>
             <polyline points="1 20 1 14 7 14"></polyline>
             <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
           </svg>
-          Sincronizar
+          <span>Sincronizar</span>
         </button>
       </div>
     </div>
   </header>
 
-  <!-- Conteúdo Principal do Terminal de Campo -->
+  <!-- =========================================================================
+       2. CONTEÚDO PRINCIPAL DO TERMINAL DE CAMPO
+       ========================================================================= -->
   <main class="field-main">
-    <!-- Seção 1: Mapa Interativo de Amostragem (Toque para Capturar Coordenadas) -->
+    
+    <!-- SEÇÃO 1: MAPA INTERATIVO HORIZONTAL DE AMOSTRAGEM (TOQUE PARA CAPTURAR COORDENADAS) -->
     <section class="field-section map-section" aria-label="Mapa de Marcação de Coleta">
       <div class="section-header-compact">
         <div class="header-with-badge">
           <span class="step-num">1</span>
-          <h2 class="section-title">Localização da Amostra</h2>
+          <div>
+            <h2 class="section-title">Localização da Coleta</h2>
+            <span class="section-subtitle">Toque na lagoa para fixar as coordenadas</span>
+          </div>
         </div>
-        <button type="button" id="btnUseGps" class="gps-btn" title="Capturar coordenadas via GPS nativo do smartphone">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="22" y1="12" x2="18" y2="12"></line>
-            <line x1="6" y1="12" x2="2" y2="12"></line>
-            <line x1="12" y1="6" x2="12" y2="2"></line>
-            <line x1="12" y1="22" x2="12" y2="18"></line>
-          </svg>
-          Usar GPS
-        </button>
+        <div class="map-actions-top">
+          <button type="button" id="btnToggleFieldLayer" class="layer-toggle-btn" title="Alternar entre Satélite e Lâmina d'água">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+              <polyline points="2 17 12 22 22 17"></polyline>
+              <polyline points="2 12 12 17 22 12"></polyline>
+            </svg>
+            <span id="fieldLayerLabel">Ver Lâmina</span>
+          </button>
+          <button type="button" id="btnUseGps" class="gps-btn" title="Capturar coordenadas via GPS nativo do smartphone">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="22" y1="12" x2="18" y2="12"></line>
+              <line x1="6" y1="12" x2="2" y2="12"></line>
+              <line x1="12" y1="6" x2="12" y2="2"></line>
+              <line x1="12" y1="22" x2="12" y2="18"></line>
+            </svg>
+            <span>Usar GPS</span>
+          </button>
+        </div>
       </div>
 
-      <p class="map-instruction">
-        &#128073; <strong>Toque no mapa</strong> no ponto da lagoa onde a amostra está sendo coletada:
-      </p>
-
-      <div class="field-map-container" id="fieldMapContainer">
-        <!-- Background interativo lagoa-mapa.jpg -->
-        <img src="lagoa-mapa.jpg" alt="Mapa Cartográfico da Lagoa da Chapadinha" class="field-map-img" id="fieldMapImg">
+      <!-- Container do Mapa Horizontal (530 x 204) -->
+      <div class="field-map-container" id="fieldMapContainer" title="Toque no mapa para capturar a posição">
+        <!-- Background interativo horizontal lagoa-completa.png -->
+        <img src="lagoa-completa.png" alt="Carta Satelital da Lagoa da Chapadinha" class="field-map-img" id="fieldMapImg">
         
         <!-- Marcador do Ponto Selecionado pelo Toque -->
-        <div class="collection-pin" id="collectionPin" style="left: 33.0%; top: 12.0%;">
+        <div class="collection-pin" id="collectionPin" style="left: 14.0%; top: 70.0%;">
           <div class="pin-crosshair"></div>
           <div class="pin-ring"></div>
           <span class="pin-label">Coleta</span>
@@ -92,30 +107,34 @@
           Lat: -10.07240 | Long: -44.29840
         </div>
       </div>
+
+      <div class="map-hint-row">
+        <span>&#128073; <strong>Toque livre:</strong> o marcador ajusta automaticamente a latitude e longitude no formulário abaixo.</span>
+      </div>
     </section>
 
-    <!-- Formulário Modular Estruturado com Accordions Retráteis -->
+    <!-- FORMULÁRIO MODULAR ESTRUTURADO COM ACCORDIONS RETRÁTEIS -->
     <form id="fieldCollectionForm" class="field-form" novalidate autocomplete="off">
       
-      <!-- Accordion 0: Metadados da Amostra (Data/Hora Automática & Identificação) -->
+      <!-- ACCORDION 0: IDENTIFICAÇÃO E DATA/HORA AUTOMÁTICA -->
       <details class="form-accordion" open>
         <summary class="accordion-header">
           <div class="accordion-title-wrap">
             <span class="accordion-icon">&#128394;</span>
-            <span class="accordion-title">Identificação & Data/Hora</span>
+            <span class="accordion-title">Identificação & Data/Hora da Amostra</span>
           </div>
           <span class="accordion-chevron">&#9662;</span>
         </summary>
         <div class="accordion-content">
           <div class="form-grid">
             <div class="form-field full-width">
-              <label for="pointSelect" class="form-label">Ponto de Referência ou Nova Estação *</label>
+              <label for="pointSelect" class="form-label">Estação de Amostragem ou Ponto Avulso *</label>
               <select id="pointSelect" class="form-select" required>
-                <option value="P1">P1 - Foz Norte / Cabeceira da Lagoa</option>
-                <option value="P2">P2 - Orla Leste / Parque Regina Freire</option>
-                <option value="P3">P3 - Lâmina Central / Águas Abertas</option>
-                <option value="P4">P4 - Margem Oeste / Orla Urbana</option>
-                <option value="P5">P5 - Vertedouro Sul / Zona de Macrófitas</option>
+                <option value="P1">P1 - Foz Oeste / Entrada das Águas</option>
+                <option value="P2">P2 - Margem Norte / Parque Regina Freire</option>
+                <option value="P3">P3 - Lâmina Central / Águas Profundas</option>
+                <option value="P4">P4 - Enseada Nordeste / Macrófitas</option>
+                <option value="P5">P5 - Foz Leste / Vertedouro Sul</option>
                 <option value="NOVO">+ Nova Estação Amostral Avulsa</option>
               </select>
             </div>
@@ -143,7 +162,7 @@
         </div>
       </details>
 
-      <!-- Accordion A: Parâmetros Físicos -->
+      <!-- ACCORDION A: PARÂMETROS FÍSICOS (COM VALIDAÇÃO DE TURBIDEZ) -->
       <details class="form-accordion" open>
         <summary class="accordion-header">
           <div class="accordion-title-wrap">
@@ -156,7 +175,7 @@
           <div class="form-grid">
             <div class="form-field">
               <label for="inputAirTemp" class="form-label">Temp. do Ar (°C) *</label>
-              <!-- Aciona teclado numérico/decimal no mobile -->
+              <!-- Aciona teclado numérico/decimal no smartphone -->
               <input type="number" id="inputAirTemp" class="form-input form-input--number" inputmode="decimal" step="0.1" min="-10" max="60" placeholder="Ex: 28.5" value="29.0" required>
             </div>
 
@@ -170,37 +189,72 @@
               <input type="number" id="inputColor" class="form-input form-input--number" inputmode="numeric" step="1" min="0" max="500" placeholder="Ex: 15" value="22" required>
             </div>
 
-            <div class="form-field">
-              <label for="inputTurbidity" class="form-label">Turbidez (NTU) *</label>
+            <!-- Turbidez com validação e indicador de alerta em tempo real -->
+            <div class="form-field" id="turbidityFormField">
+              <div class="label-with-badge">
+                <label for="inputTurbidity" class="form-label">Turbidez (NTU) *</label>
+                <span class="badge-threshold" id="turbidityThresholdBadge">Máx CONAMA: 40 NTU</span>
+              </div>
               <input type="number" id="inputTurbidity" class="form-input form-input--number" inputmode="decimal" step="0.1" min="0" max="1000" placeholder="Ex: 18.5" value="35.0" required>
-              <span class="field-hint">Alerta se > 25 NTU | Crítico se > 40 NTU</span>
+              <div class="field-feedback-pill" id="turbidityFeedbackPill">
+                <span id="turbidityFeedbackText">🟢 Conforme meta CONAMA (&le; 40 NTU)</span>
+              </div>
             </div>
           </div>
         </div>
       </details>
 
-      <!-- Accordion B: Parâmetros Químicos (Com Validação Estrita de pH 0 a 14) -->
+      <!-- ACCORDION B: PARÂMETROS QUÍMICOS (COM ESCALA COLORIMÉTRICA DINÂMICA DE PH) -->
       <details class="form-accordion" open>
         <summary class="accordion-header">
           <div class="accordion-title-wrap">
             <span class="accordion-icon">&#9877;</span>
-            <span class="accordion-title">b) Parâmetros Químicos</span>
+            <span class="accordion-title">b) Parâmetros Químicos (pH Dinâmico)</span>
           </div>
           <span class="accordion-chevron">&#9662;</span>
         </summary>
         <div class="accordion-content">
           <div class="form-grid">
-            <!-- pH COM VALIDAÇÃO ESTRITA [0 a 14] -->
+            
+            <!-- CAMPO DE pH COM ESCALA COLORIMÉTRICA DINÂMICA & VALIDAÇÃO ESTRITA [0 a 14] -->
             <div class="form-field full-width" id="phFormField">
               <div class="label-with-badge">
                 <label for="inputPh" class="form-label">pH (Potencial Hidrogeniônico) *</label>
-                <span class="badge-strict">Validação Estrita: 0 a 14</span>
+                <span class="badge-strict">Escala 0 a 14</span>
               </div>
-              <input type="number" id="inputPh" class="form-input form-input--number form-input--ph" inputmode="decimal" step="0.01" min="0" max="14" placeholder="0.00 a 14.00" value="7.25" required>
+
+              <div class="ph-input-wrapper">
+                <input type="number" id="inputPh" class="form-input form-input--number form-input--ph" inputmode="decimal" step="0.01" min="0" max="14" placeholder="Ex: 7.25 (0.00 a 14.00)" value="7.25" required>
+                <span class="ph-unit-badge">pH</span>
+              </div>
+
+              <!-- SELO COLORIMÉTRICO DINÂMICO & RÉGUA DO ESPECTRO UNIVERSAL DE pH -->
+              <div class="ph-colorimetric-container" id="phColorimetricContainer">
+                <div class="ph-status-pill" id="phStatusPill">
+                  <span class="ph-status-emoji" id="phStatusEmoji">🟢</span>
+                  <span class="ph-status-text" id="phStatusText">Ideal / Conforme CONAMA</span>
+                </div>
+
+                <!-- Mini Régua Visual do Espectro de pH com Ponteiro -->
+                <div class="ph-spectrum-bar" aria-hidden="true">
+                  <div class="ph-spectrum-gradient"></div>
+                  <div class="ph-pointer" id="phPointer" style="left: 51.78%;"></div>
+                </div>
+
+                <div class="ph-spectrum-labels">
+                  <span>0 Ácida</span>
+                  <span class="ph-label-ref">6.0</span>
+                  <span class="ph-label-ideal">Faixa Ideal CONAMA (6.0 a 9.0)</span>
+                  <span class="ph-label-ref">9.0</span>
+                  <span>14 Alcalina</span>
+                </div>
+              </div>
+
+              <!-- Mensagem de Validação Estrita -->
               <div class="validation-message" id="phValidationMsg" role="alert">
                 O valor do pH deve ser obrigatoriamente um número entre 0.00 e 14.00.
               </div>
-              <span class="field-hint">Faixa de Conformidade CONAMA 357: 6.00 a 9.00</span>
+              <span class="field-hint">Resolução CONAMA 357 (Classe 2): Faixa segura entre 6.00 e 9.00.</span>
             </div>
 
             <div class="form-field">
@@ -218,7 +272,7 @@
         </div>
       </details>
 
-      <!-- Accordion C: Parâmetros Biológicos -->
+      <!-- ACCORDION C: PARÂMETROS BIOLÓGICOS (E. COLI & COLIFORMES TOTAIS) -->
       <details class="form-accordion" open>
         <summary class="accordion-header">
           <div class="accordion-title-wrap">
@@ -233,24 +287,24 @@
               <label for="inputEColi" class="form-label">Escherichia coli (NMP/100mL) *</label>
               <!-- Aciona teclado numérico inteiro -->
               <input type="number" id="inputEColi" class="form-input form-input--number" inputmode="numeric" step="1" min="0" max="1000000" placeholder="Ex: 450" value="850" required>
-              <span class="field-hint">Crítico se &gt; 1.000 NMP/100mL</span>
+              <span class="field-hint">Crítico se &gt; 1.000 NMP/100mL (Balneabilidade)</span>
             </div>
 
             <div class="form-field">
               <label for="inputTotalColiforms" class="form-label">Coliformes Totais (NMP/100mL) *</label>
               <input type="number" id="inputTotalColiforms" class="form-input form-input--number" inputmode="numeric" step="1" min="0" max="1000000" placeholder="Ex: 2400" value="3200" required>
-              <span class="field-hint">Indicador de contaminação geral</span>
+              <span class="field-hint">Indicador de contaminação fecal geral</span>
             </div>
           </div>
         </div>
       </details>
 
-      <!-- Accordion D: Observações, Evidências e Foto da Amostra -->
+      <!-- ACCORDION D: OBSERVAÇÕES, EVIDÊNCIAS & FOTO DA AMOSTRA -->
       <details class="form-accordion" open>
         <summary class="accordion-header">
           <div class="accordion-title-wrap">
             <span class="accordion-icon">&#128247;</span>
-            <span class="accordion-title">d) Observações & Evidências</span>
+            <span class="accordion-title">d) Observações, Evidências & Foto</span>
           </div>
           <span class="accordion-chevron">&#9662;</span>
         </summary>
@@ -285,48 +339,48 @@
             </div>
           </div>
 
-          <!-- Upload de Foto da Amostra com Câmera e Preview Imediato -->
+          <!-- Upload de Foto da Amostra com Compressão Automática -->
           <div class="photo-upload-section">
-            <label class="form-label">Registro Fotográfico da Amostra</label>
+            <label class="form-label">Registro Fotográfico da Amostra de Água</label>
             <div class="upload-box-wrapper">
               <input type="file" id="samplePhotoInput" accept="image/*" capture="environment" class="file-hidden-input">
               <button type="button" id="btnTriggerPhoto" class="btn-photo-trigger">
-                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                   <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
                   <circle cx="12" cy="13" r="4"></circle>
                 </svg>
-                <span>Tirar Foto / Anexar Amostra</span>
+                <span>Tirar Foto na Beira da Lagoa / Anexar</span>
               </button>
             </div>
 
-            <!-- Preview da Foto Comprimida -->
+            <!-- Preview da Foto Comprimida em Canvas -->
             <div id="photoPreviewContainer" class="photo-preview-container" hidden>
               <img id="photoPreviewImg" src="" alt="Foto da Amostra Coletada" class="photo-preview-thumb">
               <div class="photo-preview-info">
                 <span class="photo-name" id="photoFileName">foto_amostra.jpg</span>
-                <span class="photo-size" id="photoFileSize">Otimizada para LocalStorage</span>
+                <span class="photo-size" id="photoFileSize">Otimizada para LocalStorage (&lt;50KB)</span>
                 <button type="button" id="btnRemovePhoto" class="btn-remove-photo">&#10005; Remover Foto</button>
               </div>
             </div>
           </div>
 
           <!-- Observações Gerais em Texto -->
-          <div class="form-field full-width" style="margin-top: 12px;">
+          <div class="form-field full-width" style="margin-top: 14px;">
             <label for="inputNotes" class="form-label">Notas Adicionais de Campo</label>
-            <textarea id="inputNotes" class="form-textarea" rows="2" placeholder="Observações sobre clima, nível da água, trânsito de pessoas ou barcos..."></textarea>
+            <textarea id="inputNotes" class="form-textarea" rows="2" placeholder="Observações sobre o clima, ventos, trânsito de pessoas ou presença de animais..."></textarea>
           </div>
         </div>
       </details>
 
-      <!-- Barra de Ação Principal (Fixada Ergonomicamente ou no Final do Formulário) -->
+      <!-- BARRA DE AÇÃO PRINCIPAL ERGONÔMICA -->
       <div class="form-actions-bar">
         <button type="submit" id="btnSubmitSample" class="btn-save-primary">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
             <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
             <polyline points="17 21 17 13 7 13 7 21"></polyline>
             <polyline points="7 3 7 8 15 8"></polyline>
           </svg>
-          Salvar Coleta (Offline-First)
+          <span>Salvar Coleta (Offline-First)</span>
         </button>
 
         <button type="button" id="btnResetForm" class="btn-reset-secondary">
@@ -335,12 +389,12 @@
       </div>
     </form>
 
-    <!-- Seção de Fila de Coletas Offline (Armazenadas Temporariamente no LocalStorage) -->
+    <!-- SEÇÃO DE FILA DE COLETAS OFFLINE (ARMAZENAMENTO TEMPORÁRIO LOCALSTORAGE) -->
     <section class="offline-queue-section" id="offlineQueueSection">
       <div class="queue-header">
         <div class="queue-title-wrap">
           <h2 class="queue-title">Fila de Armazenamento Local</h2>
-          <span class="queue-subtitle">Coletas salvas neste dispositivo aguardando sincronização</span>
+          <span class="queue-subtitle">Coletas salvas neste dispositivo aguardando envio para o servidor</span>
         </div>
         <button type="button" id="btnClearQueue" class="btn-clear-queue" title="Limpar fila local de coletas já sincronizadas">Limpar Histórico</button>
       </div>
@@ -355,7 +409,7 @@
     </section>
   </main>
 
-  <!-- Toast / Alertas Visuais Flutuantes -->
+  <!-- Feedback Toast Flutuante -->
   <div id="toastAlert" class="toast-alert" role="status" aria-live="polite" hidden></div>
 
   <script src="especialista.js"></script>

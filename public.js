@@ -2,22 +2,81 @@
  * ============================================================================
  * SAMA - Sistema Autônomo de Monitoramento Ambiental (Lagoa da Chapadinha)
  * VISÃO PÚBLICA (Cidadão) - public.js
- *
- * Módulo isolado (IIFE) sem vazamento de escopo global.
- * Implementa:
- * - Posicionamento calibrado na foto horizontal de satélite (lagoa-completa.png)
- * - Alternância de camadas (Satélite Completo ⇄ Lâmina D'água Isolada)
- * - Avaliação Semafórica Estrita pelo Critério do Pior Cenário (CONAMA 357)
- * - Bottom Sheet Mobile sem nenhum overlay/backdrop escuro bloqueante
- * - Fechamento imediato com display = 'none' ao tocar no botão "X"
- * - Gráfico histórico de 30 dias renderizado em Canvas 2D nativo
- * - Controle de acesso com modal de senha para a Visão Especialista
  * ============================================================================
  */
+
+// Configuração do Supabase (URL + chave pública)
+const SUPABASE_URL = "https://uuzeswbizdzqnrexhriw.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_qB7KlES-jMIGy0A9Fi7CvA_JyluRlNL";
+
+const supabaseClient = (window.supabase && SUPABASE_URL && SUPABASE_ANON_KEY)
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  : null;
+
+// Busca pontos e última medição no Supabase (com fallback para localStorage / INITIAL_POINTS)
+async function loadPointsFromSupabase() {
+  if (!supabaseClient) return null;
+
+  try {
+    const { data: pontos, error: errPontos } = await supabaseClient
+      .from("pontos_coleta")
+      .select("*")
+      .order("codigo", { ascending: true });
+
+    if (errPontos || !pontos || pontos.length === 0) return null;
+
+    const { data: medicoes } = await supabaseClient
+      .from("medicoes")
+      .select("*")
+      .order("data_hora", { ascending: false });
+
+    const ultimaPorPonto = new Map();
+    (medicoes || []).forEach((m) => {
+      if (!ultimaPorPonto.has(m.ponto_coleta_id)) {
+        ultimaPorPonto.set(m.ponto_coleta_id, m);
+      }
+    });
+
+    return pontos.map((p) => {
+      const m = ultimaPorPonto.get(p.id);
+      const initMatch = INITIAL_POINTS.find((i) => i.code === p.codigo || i.id === p.codigo);
+      return {
+        id: p.codigo,
+        code: p.codigo,
+        name: p.nome,
+        coordsDesc: (p.latitude != null && p.longitude != null)
+          ? `${Number(p.latitude).toFixed(5)}°, ${Number(p.longitude).toFixed(5)}°`
+          : (initMatch ? initMatch.coordsDesc : ""),
+        xPercent: p.x_percent != null ? Number(p.x_percent) : (initMatch ? initMatch.xPercent : 50),
+        yPercent: p.y_percent != null ? Number(p.y_percent) : (initMatch ? initMatch.yPercent : 50),
+        lastUpdate: m && m.data_hora
+          ? new Date(m.data_hora).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
+          : (initMatch ? initMatch.lastUpdate : "Sem medição"),
+        operator: (m && m.operador_nome) || p.operador_responsavel || "Equipe Técnica SAMA",
+        current: m ? {
+          ph: Number(m.ph ?? 7.0),
+          turbidity: Number(m.turbidez ?? 0),
+          eColi: Number(m.e_coli ?? 0),
+          dissolvedOxygen: Number(m.oxigenio_dissolvido ?? 0),
+          waterTemp: Number(m.temperatura_agua ?? 0),
+          airTemp: Number(m.temperatura_ar ?? 0),
+          totalPhosphorus: Number(m.fosforo_total ?? 0)
+        } : (initMatch ? initMatch.current : {
+          ph: 7.0, turbidity: 10, eColi: 100, dissolvedOxygen: 6.0,
+          waterTemp: 25.0, airTemp: 28.0, totalPhosphorus: 0.02
+        }),
+        history30d: initMatch ? initMatch.history30d : []
+      };
+    });
+  } catch (e) {
+    console.warn("[SAMA Public] Falha ao consultar Supabase, usando fallback local:", e);
+    return null;
+  }
+}
+
 (function () {
   'use strict';
 
-  // 1. Constantes e Limiares Normativos (Resolução CONAMA 357 / Águas Doces Classe 2)
   const THRESHOLDS = {
     ph: { min: 6.0, max: 9.0, criticalMin: 5.0, criticalMax: 9.5, unit: '' },
     turbidity: { idealMax: 25.0, criticalMax: 40.0, unit: 'NTU' },
@@ -26,29 +85,24 @@
     totalPhosphorus: { idealMax: 0.03, criticalMax: 0.05, unit: 'mg/L' }
   };
 
-  // Senhas autorizadas para o terminal técnico de campo
   const VALID_PASSWORDS = ['sama2026', 'admin123', 'operador2026'];
-
-  // Chaves de armazenamento
   const STORAGE_KEY_POINTS = 'SAMA_MONITORAMENTO_DB';
 
-  // 2. Base de Dados Inicial dos Pontos de Monitoramento da Lagoa da Chapadinha
-  // Coordenadas percentuais rigorosamente calculadas para ficarem 100% sobre a lâmina d'água
   const INITIAL_POINTS = [
     {
       id: 'P1',
       code: 'P1',
       name: 'Foz Oeste / Entrada das Águas',
       coordsDesc: '10°04\'28\'\' S, 44°17\'52\'\' W',
-      xPercent: 14.0, // Entrada fluvial a oeste (Água: 52% a 89.7%)
+      xPercent: 14.0,
       yPercent: 70.0,
       lastUpdate: 'Hoje, 09:30',
       operator: 'Bióloga Marina Costa (SAMA)',
       current: {
-        ph: 7.30,               // pH IDEAL (6.0 - 9.0)
-        turbidity: 58.0,        // FÍSICO FORA DO PADRÃO (> 40 NTU) -> FORÇA VERMELHO
-        eColi: 1450,            // BIOLÓGICO FORA DO PADRÃO (> 1000 NMP) -> FORÇA VERMELHO
-        dissolvedOxygen: 3.4,   // QUÍMICO CRÍTICO (< 4.0 mg/L)
+        ph: 7.30,
+        turbidity: 58.0,
+        eColi: 1450,
+        dissolvedOxygen: 3.4,
         waterTemp: 26.5,
         airTemp: 29.8,
         totalPhosphorus: 0.082
@@ -65,15 +119,15 @@
       code: 'P2',
       name: 'Margem Norte / Parque Regina Freire',
       coordsDesc: '10°04\'42\'\' S, 44°17\'30\'\' W',
-      xPercent: 32.0, // Em frente ao deque e tendas do parque (Água: 46% a 90%)
+      xPercent: 32.0,
       yPercent: 64.0,
       lastUpdate: 'Hoje, 08:45',
       operator: 'Eng. Renato Salles (SAMA)',
       current: {
-        ph: 6.85,               // pH Ideal
-        turbidity: 32.0,        // Físico em Atenção (25 a 40 NTU) -> AMARELO
-        eColi: 650,             // Biológico em Atenção (250 a 1000 NMP) -> AMARELO
-        dissolvedOxygen: 4.8,   // OD em Atenção (4.0 a 5.0 mg/L)
+        ph: 6.85,
+        turbidity: 32.0,
+        eColi: 650,
+        dissolvedOxygen: 4.8,
         waterTemp: 25.8,
         airTemp: 28.5,
         totalPhosphorus: 0.038
@@ -90,15 +144,15 @@
       code: 'P3',
       name: 'Lâmina Central / Águas Profundas',
       coordsDesc: '10°04\'50\'\' S, 44°17\'42\'\' W',
-      xPercent: 52.0, // Centro da bacia hidrográfica (Água: 27% a 93%)
+      xPercent: 52.0,
       yPercent: 60.0,
       lastUpdate: 'Hoje, 10:15',
       operator: 'Téc. Carlos Eduardo (SAMA)',
       current: {
-        ph: 7.20,               // pH Ideal
-        turbidity: 12.5,        // Turbidez Ideal (< 25 NTU)
-        eColi: 110,             // E. coli Ideal (< 250 NMP)
-        dissolvedOxygen: 6.8,   // OD Ideal (>= 5.0 mg/L)
+        ph: 7.20,
+        turbidity: 12.5,
+        eColi: 110,
+        dissolvedOxygen: 6.8,
         waterTemp: 24.5,
         airTemp: 28.0,
         totalPhosphorus: 0.018
@@ -115,15 +169,15 @@
       code: 'P4',
       name: 'Enseada Nordeste / Macrófitas',
       coordsDesc: '10°04\'58\'\' S, 44°17\'55\'\' W',
-      xPercent: 72.0, // Zona de maior largura e vegetação aquática (Água: 12% a 92%)
+      xPercent: 72.0,
       yPercent: 48.0,
       lastUpdate: 'Hoje, 09:10',
       operator: 'Bióloga Marina Costa (SAMA)',
       current: {
-        ph: 7.40,               // pH Ideal (7.4)
-        turbidity: 68.0,        // Turbidez Alta por erosão da margem (> 40 NTU) -> FORÇA VERMELHO
-        eColi: 1850,            // E. coli altíssima (> 1000 NMP) -> FORÇA VERMELHO
-        dissolvedOxygen: 3.1,   // OD crítico
+        ph: 7.40,
+        turbidity: 68.0,
+        eColi: 1850,
+        dissolvedOxygen: 3.1,
         waterTemp: 27.2,
         airTemp: 30.1,
         totalPhosphorus: 0.095
@@ -140,15 +194,15 @@
       code: 'P5',
       name: 'Foz Leste / Vertedouro Sul',
       coordsDesc: '10°05\'15\'\' S, 44°17\'35\'\' W',
-      xPercent: 85.0, // Saída d'água a leste (Água: 28% a 86%)
+      xPercent: 85.0,
       yPercent: 58.0,
       lastUpdate: 'Hoje, 08:00',
       operator: 'Eng. Renato Salles (SAMA)',
       current: {
-        ph: 7.10,               // pH Ideal
-        turbidity: 9.8,         // Ideal
-        eColi: 80,              // Ideal
-        dissolvedOxygen: 7.2,   // Excelente
+        ph: 7.10,
+        turbidity: 9.8,
+        eColi: 80,
+        dissolvedOxygen: 7.2,
         waterTemp: 24.1,
         airTemp: 27.5,
         totalPhosphorus: 0.012
@@ -169,9 +223,7 @@
       const d = new Date(now);
       d.setDate(d.getDate() - i);
       const dayLabel = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
-      
       const factor = Math.sin(i * 0.4) * 0.5 + (Math.random() - 0.5) * 0.5;
-      
       list.push({
         date: dayLabel,
         dayOffset: i,
@@ -184,12 +236,10 @@
     return list;
   }
 
-  // 3. REGRA DE NEGÓCIO: Avaliação Estrita do Pior Cenário (Worst-Case Scenario)
   function evaluateWorstCaseStatus(p) {
     const criticalViolations = [];
     const warningViolations = [];
 
-    // --- A. Parâmetro Químico: pH ---
     let phStatus = 'green';
     if (p.ph < THRESHOLDS.ph.criticalMin || p.ph > THRESHOLDS.ph.criticalMax) {
       criticalViolations.push(`pH fora do padrão severo (${p.ph.toFixed(2)})`);
@@ -199,7 +249,6 @@
       phStatus = 'yellow';
     }
 
-    // --- B. Parâmetro Biológico: E. coli (Balneabilidade) ---
     let bioStatus = 'green';
     if (p.eColi > THRESHOLDS.eColi.criticalMax) {
       criticalViolations.push(`Contaminação Biológica Severa: E. coli (${p.eColi} NMP/100mL > limite de 1.000)`);
@@ -209,7 +258,6 @@
       bioStatus = 'yellow';
     }
 
-    // --- C. Parâmetro Físico: Turbidez ---
     let physicalStatus = 'green';
     if (p.turbidity > THRESHOLDS.turbidity.criticalMax) {
       criticalViolations.push(`Turbidez Crítica (${p.turbidity.toFixed(1)} NTU > limite de 40.0)`);
@@ -219,7 +267,6 @@
       physicalStatus = 'yellow';
     }
 
-    // --- D. Parâmetro Químico: Oxigênio Dissolvido (OD) ---
     let odStatus = 'green';
     if (p.dissolvedOxygen < THRESHOLDS.dissolvedOxygen.criticalMin) {
       criticalViolations.push(`Oxigênio Dissolvido Crítico (${p.dissolvedOxygen.toFixed(1)} mg/L < 4.0 mg/L)`);
@@ -229,14 +276,10 @@
       odStatus = 'yellow';
     }
 
-    // Aplicação Estrita da Regra do Pior Cenário
     if (criticalViolations.length > 0) {
-      let rationaleText = '';
-      if (phStatus === 'green') {
-        rationaleText = `Apesar do pH estar na faixa ideal de conformidade (${p.ph.toFixed(2)}), este ponto foi classificado como CRÍTICO devido a desvios severos: ${criticalViolations.join('; ')}.`;
-      } else {
-        rationaleText = `Classificação Crítica por desconformidade regulatória: ${criticalViolations.join('; ')}.`;
-      }
+      let rationaleText = phStatus === 'green'
+        ? `Apesar do pH estar na faixa ideal de conformidade (${p.ph.toFixed(2)}), este ponto foi classificado como CRÍTICO devido a desvios severos: ${criticalViolations.join('; ')}.`
+        : `Classificação Crítica por desconformidade regulatória: ${criticalViolations.join('; ')}.`;
 
       return {
         level: 'red',
@@ -271,17 +314,15 @@
     };
   }
 
-  // 4. Estado da Aplicação
   const state = {
     points: [],
     selectedPoint: null,
     activeFilter: 'all',
     activeChartMetric: 'turbidity',
     zoomLevel: 1.0,
-    currentMapLayer: 'complete' // 'complete' | 'isolated'
+    currentMapLayer: 'complete'
   };
 
-  // 5. Elementos DOM da Interface
   const DOM = {
     btnToggleDrawer: document.getElementById('btnToggleDrawer'),
     btnCloseDrawer: document.getElementById('btnCloseDrawer'),
@@ -290,7 +331,6 @@
     drawerPointsList: document.getElementById('drawerPointsList'),
     filterButtons: document.querySelectorAll('.filter-btn'),
     
-    // Mapa e Camadas
     mapViewport: document.getElementById('mapViewport'),
     pinsLayer: document.getElementById('pinsLayer'),
     mapCanvasWrapper: document.getElementById('mapCanvasWrapper'),
@@ -301,14 +341,12 @@
     btnZoomOut: document.getElementById('btnZoomOut'),
     btnZoomReset: document.getElementById('btnZoomReset'),
 
-    // KPIs do Drawer
     kpiTotalPoints: document.getElementById('kpiTotalPoints'),
     kpiIdealPoints: document.getElementById('kpiIdealPoints'),
     kpiWarningPoints: document.getElementById('kpiWarningPoints'),
     kpiCriticalPoints: document.getElementById('kpiCriticalPoints'),
     globalStatusPill: document.getElementById('globalStatusPill'),
 
-    // Card Flutuante / Bottom Sheet
     floatingCard: document.getElementById('floatingCard'),
     btnCloseCard: document.getElementById('btnCloseCard'),
     cardPointCode: document.getElementById('cardPointCode'),
@@ -332,7 +370,6 @@
     cardLastCollectionDate: document.getElementById('cardLastCollectionDate'),
     cardOperator: document.getElementById('cardOperator'),
 
-    // Canvas & Mini-Gráfico
     miniTrendCanvas: document.getElementById('miniTrendCanvas'),
     chartTooltip: document.getElementById('chartTooltip'),
     chartMetricLabel: document.getElementById('chartMetricLabel'),
@@ -342,7 +379,6 @@
     chartStatMax: document.getElementById('chartStatMax'),
     chartStatLimit: document.getElementById('chartStatLimit'),
 
-    // Modal de Autenticação para Especialista
     btnOpenAuthModal: document.getElementById('btnOpenAuthModal'),
     btnDrawerOpenAuth: document.getElementById('btnDrawerOpenAuth'),
     authModal: document.getElementById('authModal'),
@@ -357,13 +393,11 @@
     btnCancelAuth: document.getElementById('btnCancelAuth')
   };
 
-  // 6. Inicialização do Banco de Dados
   function initDatabase() {
     try {
       const stored = localStorage.getItem(STORAGE_KEY_POINTS);
       if (stored) {
         state.points = JSON.parse(stored);
-        // Atualiza pontos com as coordenadas calibradas na imagem horizontal
         state.points.forEach(pt => {
           const initMatch = INITIAL_POINTS.find(i => i.id === pt.id || i.code === pt.code);
           if (initMatch) {
@@ -394,7 +428,6 @@
     }
   }
 
-  // 7. Renderização dos Pinos no Mapa
   function renderMapPins() {
     if (!DOM.pinsLayer) return;
     DOM.pinsLayer.innerHTML = '';
@@ -429,7 +462,6 @@
     });
   }
 
-  // 8. Renderização do Painel Lateral e KPIs
   function renderDrawerInfo() {
     if (!DOM.drawerPointsList) return;
 
@@ -487,26 +519,22 @@
     }
   }
 
-  // 9. Seleção de Ponto e Abertura do Card (SEM BACKDROP DESFOCADO)
   function selectPoint(pointId) {
     const point = state.points.find(p => p.id === pointId);
     if (!point) return;
 
     state.selectedPoint = point;
 
-    // Atualiza classe ativa dos pinos no mapa
     document.querySelectorAll('.map-pin').forEach(pin => {
       pin.classList.toggle('active', pin.getAttribute('data-point-id') === pointId);
     });
 
-    // Preenche dados no Card Flutuante
     DOM.cardPointCode.textContent = point.code;
     DOM.cardPointName.textContent = point.name;
     DOM.cardPointCoords.textContent = point.coordsDesc;
     DOM.cardLastCollectionDate.textContent = point.lastUpdate;
     DOM.cardOperator.textContent = point.operator;
 
-    // Estilização semafórica estrita do card
     const st = point.statusObj;
     DOM.cardVerdictBox.className = `status-verdict-box verdict-box--${st.level}`;
     DOM.cardVerdictBadge.textContent = st.badge;
@@ -523,7 +551,6 @@
     }
     DOM.cardVerdictIcon.innerHTML = iconSvg;
 
-    // Preenche Métricas
     const curr = point.current;
     DOM.valPh.textContent = curr.ph.toFixed(2);
     const phPercent = Math.min(100, Math.max(0, (curr.ph / 14) * 100));
@@ -553,18 +580,15 @@
     DOM.valTemp.textContent = curr.waterTemp.toFixed(1);
     DOM.valPhosphorus.textContent = curr.totalPhosphorus.toFixed(3);
 
-    // Exibe explicitamente o card sem nenhum overlay/backdrop escuro bloqueante
     if (DOM.floatingCard) {
       DOM.floatingCard.removeAttribute('hidden');
       DOM.floatingCard.style.display = 'flex';
       DOM.floatingCard.classList.add('active', 'open');
     }
 
-    // Renderiza o mini-gráfico de 30 dias em Canvas
     renderCanvasChart();
   }
 
-  // FECHAMENTO EXPLICITO COM display = 'none' PARA DESOBSTRUIR O MAPA
   function closeCard() {
     if (DOM.floatingCard) {
       DOM.floatingCard.style.display = 'none';
@@ -575,7 +599,6 @@
     document.querySelectorAll('.map-pin').forEach(pin => pin.classList.remove('active'));
   }
 
-  // 10. RENDERIZADOR NATIVO EM CANVAS DO MINI-GRÁFICO DE 30 DIAS
   let chartPointsCoords = [];
 
   function renderCanvasChart() {
@@ -672,7 +695,6 @@
     }
     const yRange = yMax - yMin;
 
-    // Linhas de Grade e Eixo Y
     ctx.strokeStyle = '#e2e8f0';
     ctx.lineWidth = 1;
     ctx.font = '10px sans-serif';
@@ -690,7 +712,6 @@
       ctx.fillText(v.toFixed(1), padLeft - 6, y + 3);
     }
 
-    // Linha de Limite Regulatório (CONAMA 357)
     if (limitVal !== null && limitVal >= yMin && limitVal <= yMax) {
       const limitY = padTop + chartH - ((limitVal - yMin) / yRange) * chartH;
       ctx.strokeStyle = '#ef4444';
@@ -707,7 +728,6 @@
       ctx.fillText(`Meta CONAMA (${limitVal})`, padLeft + 6, limitY - 4);
     }
 
-    // Coordenadas dos Pontos da Série
     chartPointsCoords = [];
     const stepX = chartW / (dataVals.length - 1);
 
@@ -724,7 +744,6 @@
       });
     }
 
-    // Área sob a curva com gradiente
     const gradient = ctx.createLinearGradient(0, padTop, 0, padTop + chartH);
     gradient.addColorStop(0, gradientStart);
     gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
@@ -739,7 +758,6 @@
     ctx.fillStyle = gradient;
     ctx.fill();
 
-    // Linha Principal da Série
     ctx.strokeStyle = lineColor;
     ctx.lineWidth = 2.5;
     ctx.lineJoin = 'round';
@@ -750,7 +768,6 @@
     }
     ctx.stroke();
 
-    // Destaque nos pontos de início e fim
     [chartPointsCoords[0], chartPointsCoords[chartPointsCoords.length - 1]].forEach(pt => {
       ctx.fillStyle = '#ffffff';
       ctx.strokeStyle = lineColor;
@@ -761,7 +778,6 @@
       ctx.stroke();
     });
 
-    // Rótulos do Eixo X (Datas: 30d atrás e Hoje)
     ctx.fillStyle = '#64748b';
     ctx.textAlign = 'left';
     ctx.fillText(history[0].date, padLeft, height - 8);
@@ -769,7 +785,6 @@
     ctx.fillText('Hoje', width - padRight, height - 8);
   }
 
-  // Interação de Hover / Toque no Gráfico (Tooltip)
   function handleChartInteraction(e) {
     if (!DOM.miniTrendCanvas || chartPointsCoords.length === 0) return;
 
@@ -799,7 +814,6 @@
     }
   }
 
-  // 11. Controle de Zoom e Alternância de Camadas da Lagoa
   function setZoom(level) {
     state.zoomLevel = Math.max(0.9, Math.min(2.5, level));
     if (DOM.mapCanvasWrapper) {
@@ -820,7 +834,6 @@
     }
   }
 
-  // 12. Funções do Menu Lateral (Drawer)
   function openDrawer() {
     DOM.sideDrawer.classList.add('active');
     DOM.drawerBackdrop.classList.add('active');
@@ -835,7 +848,6 @@
     DOM.sideDrawer.setAttribute('aria-hidden', 'true');
   }
 
-  // 13. Controle de Acesso por Senha para o Especialista
   function openAuthModal() {
     closeDrawer();
     DOM.authBackdrop.hidden = false;
@@ -873,21 +885,17 @@
     }
 
     if (VALID_PASSWORDS.includes(entered.toLowerCase())) {
-      // Redireciona para o terminal de campo do especialista
       window.location.href = 'especialista.html';
     } else {
       showAuthError('Código/Senha incorreta. Acesso não autorizado.');
     }
   }
 
-  // 14. Event Listeners e Configurações
   function setupEventListeners() {
-    // Menu Lateral
     if (DOM.btnToggleDrawer) DOM.btnToggleDrawer.addEventListener('click', openDrawer);
     if (DOM.btnCloseDrawer) DOM.btnCloseDrawer.addEventListener('click', closeDrawer);
     if (DOM.drawerBackdrop) DOM.drawerBackdrop.addEventListener('click', closeDrawer);
 
-    // Fechar Card Flutuante com o botão "X"
     if (DOM.btnCloseCard) {
       DOM.btnCloseCard.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -895,7 +903,6 @@
       });
     }
 
-    // Alternador de Camadas da Lagoa
     if (DOM.btnLayerComplete) {
       DOM.btnLayerComplete.addEventListener('click', () => setMapLayer('complete'));
     }
@@ -903,12 +910,10 @@
       DOM.btnLayerIsolated.addEventListener('click', () => setMapLayer('isolated'));
     }
 
-    // Zoom do Mapa
     if (DOM.btnZoomIn) DOM.btnZoomIn.addEventListener('click', () => setZoom(state.zoomLevel + 0.2));
     if (DOM.btnZoomOut) DOM.btnZoomOut.addEventListener('click', () => setZoom(state.zoomLevel - 0.2));
     if (DOM.btnZoomReset) DOM.btnZoomReset.addEventListener('click', () => setZoom(1.0));
 
-    // Filtros de Pontos
     DOM.filterButtons.forEach(btn => {
       btn.addEventListener('click', () => {
         DOM.filterButtons.forEach(b => b.classList.remove('active'));
@@ -918,7 +923,6 @@
       });
     });
 
-    // Abas do Gráfico Histórico
     DOM.chartTabs.forEach(tab => {
       tab.addEventListener('click', () => {
         DOM.chartTabs.forEach(t => t.classList.remove('active'));
@@ -928,7 +932,6 @@
       });
     });
 
-    // Tooltip no Canvas
     if (DOM.miniTrendCanvas) {
       DOM.miniTrendCanvas.addEventListener('mousemove', handleChartInteraction);
       DOM.miniTrendCanvas.addEventListener('mouseleave', () => {
@@ -938,7 +941,6 @@
       DOM.miniTrendCanvas.addEventListener('touchmove', handleChartInteraction, { passive: true });
     }
 
-    // Modal de Autenticação para Especialista
     if (DOM.btnOpenAuthModal) DOM.btnOpenAuthModal.addEventListener('click', openAuthModal);
     if (DOM.btnDrawerOpenAuth) DOM.btnDrawerOpenAuth.addEventListener('click', openAuthModal);
     if (DOM.btnCloseAuth) DOM.btnCloseAuth.addEventListener('click', closeAuthModal);
@@ -946,7 +948,6 @@
     if (DOM.authBackdrop) DOM.authBackdrop.addEventListener('click', closeAuthModal);
     if (DOM.authForm) DOM.authForm.addEventListener('submit', handleAuthSubmit);
 
-    // Alternar visibilidade da senha
     if (DOM.btnTogglePassword) {
       DOM.btnTogglePassword.addEventListener('click', () => {
         const isPwd = DOM.operatorPasswordInput.type === 'password';
@@ -954,20 +955,29 @@
       });
     }
 
-    // Redimensionamento de Janela (ajuste do gráfico)
     window.addEventListener('resize', () => {
       if (state.selectedPoint) renderCanvasChart();
     });
   }
 
-  // 15. Inicialização da Aplicação (Bootstrap)
-  function bootstrap() {
+  // BOOTSTRAP COM CONSULTA AO SUPABASE
+  async function bootstrap() {
     initDatabase();
+
+    // Consulta remota ao Supabase para atualizar os pontos
+    const remotePoints = await loadPointsFromSupabase();
+    if (remotePoints && remotePoints.length > 0) {
+      state.points = remotePoints;
+      state.points.forEach(pt => {
+        pt.statusObj = evaluateWorstCaseStatus(pt.current);
+      });
+      savePointsDatabase();
+    }
+
     renderMapPins();
     renderDrawerInfo();
     setupEventListeners();
 
-    // No desktop, abre o ponto P1 por padrão para preencher a tela
     if (window.innerWidth >= 1024 && state.points.length > 0) {
       selectPoint('P1');
     }

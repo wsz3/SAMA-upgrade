@@ -2,19 +2,84 @@
  * ============================================================================
  * SAMA - Sistema Autônomo de Monitoramento Ambiental (Lagoa da Chapadinha)
  * VISÃO DO ESPECIALISTA (Operador de Campo) - especialista.js
- *
- * Módulo isolado (IIFE) sem vazamento de escopo global.
- * Implementa:
- * - Calibração de coordenadas com imagem horizontal (lagoa-completa.png)
- * - Alternância de camadas (Satélite ⇄ Lâmina D'água)
- * - Escala Colorimétrica Dinâmica de pH em tempo real com validação estrita (0-14)
- * - Feedback dinâmico de turbidez conforme CONAMA 357
- * - Toque no mapa para capturar coordenadas geográficas
- * - Captura GPS nativo com alta precisão
- * - Upload de foto da amostra com compressão Canvas (<50KB)
- * - Arquitetura Offline-First com LocalStorage e sincronização resiliente
  * ============================================================================
  */
+
+
+// Configuração do Supabase (URL + chave pública para aplicação front-end)
+const SUPABASE_URL = "https://uuzeswbizdzqnrexhriw.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_qB7KlES-jMIGy0A9Fi7CvA_JyluRlNL";
+
+const supabaseClient = (window.supabase && SUPABASE_URL && SUPABASE_ANON_KEY)
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  : null;
+
+// Envia ponto (novo ou atualizado) e medição para o Supabase
+async function sendSampleToSupabase(sample, pointCode) {
+  if (!supabaseClient || !navigator.onLine) {
+    return { ok: false, reason: "offline_or_unconfigured" };
+  }
+
+  try {
+    // 1. Garante que o ponto existe/atualiza em pontos_coleta
+    const pontoPayload = {
+      codigo: pointCode,
+      nome: sample.pointName,
+      localizacao: "Lagoa da Chapadinha",
+      latitude: sample.coords.lat,
+      longitude: sample.coords.lng,
+      x_percent: sample.coords.xPercent,
+      y_percent: sample.coords.yPercent,
+      operador_responsavel: sample.operator,
+      ultima_atualizacao: sample.isoDate
+    };
+
+    const { data: pontoSalvo, error: errPonto } = await supabaseClient
+      .from("pontos_coleta")
+      .upsert(pontoPayload, { onConflict: "codigo" })
+      .select("id, codigo")
+      .single();
+
+    if (errPonto || !pontoSalvo) {
+      throw errPonto || new Error("Falha ao salvar ponto_coleta");
+    }
+
+    // 2. Insere a medição em medicoes
+    const medicaoPayload = {
+      ponto_coleta_id: pontoSalvo.id,
+      operador_nome: sample.operator,
+      ph: sample.data.ph,
+      oxigenio_dissolvido: sample.data.dissolvedOxygen,
+      fosforo_total: sample.data.totalPhosphorus,
+      temperatura_ar: sample.data.airTemp,
+      temperatura_agua: sample.data.waterTemp,
+      cor: sample.data.color,
+      turbidez: sample.data.turbidity,
+      e_coli: sample.data.eColi,
+      coliformes_totais: sample.data.totalColiforms,
+      evidencias: sample.evidences,
+      observacoes: sample.notes || null,
+      foto_base64: sample.photoBase64 || null,
+      foto_nome: sample.photoName || null,
+      origem: "Manual",
+      data_hora: sample.isoDate
+    };
+
+    const { error: errMedicao } = await supabaseClient
+      .from("medicoes")
+      .insert(medicaoPayload);
+
+    if (errMedicao) {
+      throw errMedicao;
+    }
+
+    return { ok: true };
+  } catch (e) {
+    console.warn("[SAMA Campo] Erro ao enviar ao Supabase (mantido na fila local):", e);
+    return { ok: false, reason: e.message };
+  }
+}
+
 (function () {
   'use strict';
 
@@ -22,8 +87,6 @@
   const STORAGE_KEY_OFFLINE = 'SAMA_OFFLINE_COLETAS';
   const STORAGE_KEY_POINTS = 'SAMA_MONITORAMENTO_DB';
 
-  // Delimitação Cartográfica da Lagoa da Chapadinha para Cálculo de Coordenadas
-  // Projeção calibrada na imagem horizontal (530 x 204)
   const GEO_BOUNDS = {
     latMin: -10.08800,
     latMax: -10.07000,
@@ -31,7 +94,6 @@
     lngMax: -44.28500
   };
 
-  // Coordenadas padrão dos pontos cadastrados (100% sobre a lâmina d'água)
   const PRESET_POINTS = {
     P1: { name: 'P1 - Foz Oeste / Entrada das Águas', xPercent: 14.0, yPercent: 70.0, lat: -10.07240, lng: -44.29840 },
     P2: { name: 'P2 - Margem Norte / Parque Regina Freire', xPercent: 32.0, yPercent: 64.0, lat: -10.07700, lng: -44.29220 },
@@ -40,7 +102,6 @@
     P5: { name: 'P5 - Foz Leste / Vertedouro Sul', xPercent: 85.0, yPercent: 58.0, lat: -10.08640, lng: -44.29340 }
   };
 
-  // 2. Estado Interno do Terminal do Especialista
   const state = {
     isOnline: navigator.onLine,
     selectedPointKey: 'P1',
@@ -49,12 +110,10 @@
     currentPhotoName: null,
     offlineQueue: [],
     isSyncing: false,
-    fieldLayer: 'complete' // 'complete' | 'isolated'
+    fieldLayer: 'complete'
   };
 
-  // 3. Referências DOM
   const DOM = {
-    // Header & Rede
     networkBadge: document.getElementById('networkBadge'),
     networkDot: document.getElementById('networkDot'),
     networkLabel: document.getElementById('networkLabel'),
@@ -63,7 +122,6 @@
     pendingCounterBadge: document.getElementById('pendingCounterBadge'),
     btnManualSync: document.getElementById('btnManualSync'),
 
-    // Mapa de Amostragem
     fieldMapContainer: document.getElementById('fieldMapContainer'),
     fieldMapImg: document.getElementById('fieldMapImg'),
     collectionPin: document.getElementById('collectionPin'),
@@ -72,7 +130,6 @@
     fieldLayerLabel: document.getElementById('fieldLayerLabel'),
     btnUseGps: document.getElementById('btnUseGps'),
 
-    // Formulário
     form: document.getElementById('fieldCollectionForm'),
     pointSelect: document.getElementById('pointSelect'),
     inputLat: document.getElementById('inputLat'),
@@ -80,7 +137,6 @@
     inputTimestamp: document.getElementById('inputTimestamp'),
     inputOperator: document.getElementById('inputOperator'),
 
-    // Físicos
     inputAirTemp: document.getElementById('inputAirTemp'),
     inputWaterTemp: document.getElementById('inputWaterTemp'),
     inputColor: document.getElementById('inputColor'),
@@ -89,7 +145,6 @@
     turbidityFeedbackPill: document.getElementById('turbidityFeedbackPill'),
     turbidityFeedbackText: document.getElementById('turbidityFeedbackText'),
 
-    // Químicos (pH Dinâmico)
     phFormField: document.getElementById('phFormField'),
     inputPh: document.getElementById('inputPh'),
     phStatusPill: document.getElementById('phStatusPill'),
@@ -100,11 +155,9 @@
     inputOd: document.getElementById('inputOd'),
     inputPhosphorus: document.getElementById('inputPhosphorus'),
 
-    // Biológicos
     inputEColi: document.getElementById('inputEColi'),
     inputTotalColiforms: document.getElementById('inputTotalColiforms'),
 
-    // Observações & Foto
     chkOdor: document.getElementById('chkOdor'),
     chkWaste: document.getElementById('chkWaste'),
     chkAlgae: document.getElementById('chkAlgae'),
@@ -118,20 +171,16 @@
     btnRemovePhoto: document.getElementById('btnRemovePhoto'),
     inputNotes: document.getElementById('inputNotes'),
 
-    // Botões de Ação
     btnSubmitSample: document.getElementById('btnSubmitSample'),
     btnResetForm: document.getElementById('btnResetForm'),
 
-    // Fila Offline
     queueList: document.getElementById('queueList'),
     queueEmptyState: document.getElementById('queueEmptyState'),
     btnClearQueue: document.getElementById('btnClearQueue'),
 
-    // Toast
     toastAlert: document.getElementById('toastAlert')
   };
 
-  // 4. Captura Automática de Data/Hora (Legível e ISO)
   function refreshTimestamp() {
     const now = new Date();
     const pad = (n) => String(n).padStart(2, '0');
@@ -148,23 +197,19 @@
     }
   }
 
-  // 5. MAPA DE COLETA: Clique na Carta Horizontal Preenche Coordenadas Automaticamente
   function handleMapClick(e) {
     const rect = DOM.fieldMapContainer.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
     const clickY = e.clientY - rect.top;
 
-    // Percentual relativo dentro da imagem horizontal (0 a 100)
     const xPct = Math.min(100, Math.max(0, (clickX / rect.width) * 100));
     const yPct = Math.min(100, Math.max(0, (clickY / rect.height) * 100));
 
-    // Interpolação para Latitude e Longitude
     const lat = GEO_BOUNDS.latMax - (yPct / 100) * (GEO_BOUNDS.latMax - GEO_BOUNDS.latMin);
     const lng = GEO_BOUNDS.lngMin + (xPct / 100) * (GEO_BOUNDS.lngMax - GEO_BOUNDS.lngMin);
 
     updateMapCoordinates(lat, lng, xPct, yPct);
 
-    // Ajusta o select para "+ Nova Estação Amostral Avulsa" se clicado livremente
     if (DOM.pointSelect && DOM.pointSelect.value !== 'NOVO') {
       DOM.pointSelect.value = 'NOVO';
     }
@@ -193,7 +238,6 @@
     }
   }
 
-  // Alternar Camadas da Lagoa (Satélite Completo ⇄ Lâmina Isolada)
   function toggleFieldLayer() {
     if (state.fieldLayer === 'complete') {
       state.fieldLayer = 'isolated';
@@ -208,7 +252,6 @@
     }
   }
 
-  // Captura via GPS Nativo do Smartphone
   function handleUseGps() {
     if (!navigator.geolocation) {
       showToast('Geolocalização não suportada neste aparelho.', 'warning');
@@ -239,14 +282,6 @@
     );
   }
 
-  // 6. ESCALA COLORIMÉTRICA DINÂMICA DO pH & VALIDAÇÃO ESTRITA (0 a 14)
-  /**
-   * Conforme o operador digita o valor numérico do pH no input:
-   * a) pH < 6.0: O campo muda dinamicamente para tons de vermelho/laranja com o selo "🔴 Ácida (Fora CONAMA)".
-   * b) pH entre 6.0 e 9.0: O campo muda para verde com o selo "🟢 Ideal / Conforme CONAMA".
-   * c) pH > 9.0: O campo muda para azul/roxo com o selo "🔵 Alcalina (Fora CONAMA)".
-   * Além disso, valida estritamente a faixa universal [0.00, 14.00].
-   */
   function updatePhColorimetricScale() {
     if (!DOM.inputPh || !DOM.phFormField) return;
 
@@ -269,32 +304,26 @@
       return false;
     }
 
-    // Valor numérico válido entre 0 e 14
     DOM.phFormField.classList.remove('has-error');
     DOM.phValidationMsg.textContent = '';
     DOM.inputPh.removeAttribute('aria-invalid');
 
-    // Posiciona o ponteiro na régua espectral
     const pct = Math.min(100, Math.max(0, (num / 14) * 100));
     if (DOM.phPointer) {
       DOM.phPointer.style.left = `${pct}%`;
     }
 
-    // Remove classes anteriores
     DOM.phFormField.classList.remove('ph-state-acid', 'ph-state-ideal', 'ph-state-alkaline');
 
     if (num < 6.0) {
-      // a) pH < 6.0: Vermelho/Laranja com selo "🔴 Ácida (Fora CONAMA)"
       DOM.phFormField.classList.add('ph-state-acid');
       if (DOM.phStatusEmoji) DOM.phStatusEmoji.textContent = '🔴';
       if (DOM.phStatusText) DOM.phStatusText.textContent = '🔴 Ácida (Fora CONAMA)';
     } else if (num <= 9.0) {
-      // b) pH entre 6.0 e 9.0: Verde com selo "🟢 Ideal / Conforme CONAMA"
       DOM.phFormField.classList.add('ph-state-ideal');
       if (DOM.phStatusEmoji) DOM.phStatusEmoji.textContent = '🟢';
       if (DOM.phStatusText) DOM.phStatusText.textContent = '🟢 Ideal / Conforme CONAMA';
     } else {
-      // c) pH > 9.0: Azul/Roxo com selo "🔵 Alcalina (Fora CONAMA)"
       DOM.phFormField.classList.add('ph-state-alkaline');
       if (DOM.phStatusEmoji) DOM.phStatusEmoji.textContent = '🔵';
       if (DOM.phStatusText) DOM.phStatusText.textContent = '🔵 Alcalina (Fora CONAMA)';
@@ -312,7 +341,6 @@
     if (DOM.phStatusText) DOM.phStatusText.textContent = 'Valor Fora da Escala (0 a 14)';
   }
 
-  // 7. VALIDAÇÃO & FEEDBACK DINÂMICO DE TURBIDEZ
   function updateTurbidityFeedback() {
     if (!DOM.inputTurbidity || !DOM.turbidityFeedbackText) return;
 
@@ -337,7 +365,6 @@
     }
   }
 
-  // 8. UPLOAD DE FOTO COM COMPRESSÃO EM CANVAS (< 50KB)
   function handlePhotoUpload(e) {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
@@ -389,7 +416,6 @@
     DOM.photoPreviewImg.src = '';
   }
 
-  // 9. ARQUITETURA OFFLINE-FIRST COM LOCALSTORAGE
   function loadOfflineQueue() {
     try {
       const stored = localStorage.getItem(STORAGE_KEY_OFFLINE);
@@ -457,18 +483,16 @@
     });
   }
 
-  // 10. ENVIO DO FORMULÁRIO DE COLETA
-  function handleFormSubmit(e) {
+  // 10. ENVIO DO FORMULÁRIO DE COLETA (INTEGRADO AO SUPABASE)
+  async function handleFormSubmit(e) {
     e.preventDefault();
 
-    // 1. Validação estrita de pH
     if (!updatePhColorimetricScale()) {
       DOM.inputPh.focus();
       showToast('Corrija o pH antes de salvar (aceito apenas 0 a 14).', 'error');
       return;
     }
 
-    // 2. Extração dos Parâmetros
     const phVal = parseFloat(DOM.inputPh.value.replace(',', '.'));
     const airTempVal = parseFloat(DOM.inputAirTemp.value) || 28.0;
     const waterTempVal = parseFloat(DOM.inputWaterTemp.value) || 25.0;
@@ -479,7 +503,6 @@
     const eColiVal = parseInt(DOM.inputEColi.value, 10) || 100;
     const totalColiformsVal = parseInt(DOM.inputTotalColiforms.value, 10) || 500;
 
-    // Checkboxes de evidências
     const evidences = [];
     if (DOM.chkOdor.checked) evidences.push('Mau cheiro característico');
     if (DOM.chkWaste.checked) evidences.push('Resíduos sólidos / lixo');
@@ -515,25 +538,37 @@
       notes: DOM.inputNotes.value.trim(),
       photoBase64: state.currentPhotoBase64,
       photoName: state.currentPhotoName,
-      syncStatus: state.isOnline ? 'synced' : 'pending'
+      syncStatus: 'pending'
     };
 
-    // Salva na fila local
-    state.offlineQueue.unshift(sampleRecord);
-    saveOfflineQueue();
-
-    // Se online, sincroniza imediatamente com a base central (SAMA_MONITORAMENTO_DB)
+    // Tenta enviar diretamente ao Supabase
     if (state.isOnline) {
-      applySampleToDatabase(sampleRecord);
-      showToast(`Coleta de ${pointName} gravada e sincronizada online!`, 'success', 3500);
+      const supaRes = await sendSampleToSupabase(sampleRecord, pointKey);
+      if (supaRes.ok) {
+        sampleRecord.syncStatus = 'synced';
+        state.offlineQueue.unshift(sampleRecord);
+        saveOfflineQueue();
+        applySampleToDatabase(sampleRecord);
+        showToast(`Coleta de ${pointName} gravada e sincronizada no Supabase!`, 'success', 3500);
+      } else {
+        sampleRecord.syncStatus = 'pending';
+        state.offlineQueue.unshift(sampleRecord);
+        saveOfflineQueue();
+        applySampleToDatabase(sampleRecord);
+        showToast(`Salvo localmente. Pendente de envio ao Supabase.`, 'warning', 4500);
+      }
     } else {
+      sampleRecord.syncStatus = 'pending';
+      state.offlineQueue.unshift(sampleRecord);
+      saveOfflineQueue();
+      applySampleToDatabase(sampleRecord);
       showToast(`Coleta salva no dispositivo (Modo Offline). Será sincronizada ao reconectar!`, 'warning', 4500);
     }
 
     refreshTimestamp();
   }
 
-  // 11. SINCRONIZAÇÃO COM A BASE CENTRAL (SAMA_MONITORAMENTO_DB)
+  // 11. SINCRONIZAÇÃO COM A BASE CENTRAL (LOCALSTORAGE + SUPABASE)
   function applySampleToDatabase(sample) {
     try {
       const stored = localStorage.getItem(STORAGE_KEY_POINTS);
@@ -586,31 +621,33 @@
     state.isSyncing = true;
 
     DOM.btnManualSync.classList.add('syncing');
-    DOM.syncStatusText.textContent = 'Sincronizando coletas pendentes com a central...';
+    DOM.syncStatusText.textContent = 'Sincronizando coletas pendentes com o Supabase...';
 
-    setTimeout(() => {
+    setTimeout(async () => {
       let syncedCount = 0;
-      state.offlineQueue.forEach(item => {
+      for (const item of state.offlineQueue) {
         if (item.syncStatus === 'pending') {
-          applySampleToDatabase(item);
-          item.syncStatus = 'synced';
-          syncedCount++;
+          const supaRes = await sendSampleToSupabase(item, item.pointKey);
+          if (supaRes.ok) {
+            applySampleToDatabase(item);
+            item.syncStatus = 'synced';
+            syncedCount++;
+          }
         }
-      });
+      }
 
       saveOfflineQueue();
       state.isSyncing = false;
       DOM.btnManualSync.classList.remove('syncing');
 
       if (syncedCount > 0) {
-        showToast(`Sincronização concluída: ${syncedCount} coleta(s) enviada(s)!`, 'success', 3500);
+        showToast(`Sincronização concluída: ${syncedCount} coleta(s) enviada(s) ao Supabase!`, 'success', 3500);
       } else {
-        showToast('Nenhuma nova coleta pendente para sincronizar.', 'success', 2500);
+        showToast('Nenhuma coleta pendente precisou ser enviada.', 'success', 2500);
       }
-    }, 700);
+    }, 500);
   }
 
-  // 12. Conectividade Online / Offline
   function updateNetworkAndSyncUI() {
     state.isOnline = navigator.onLine;
 
@@ -635,7 +672,6 @@
     showToast('Aparelho sem conexão. Ativando modo Offline-First na beira da lagoa.', 'warning', 4000);
   }
 
-  // 13. Toast Feedback
   let toastTimer = null;
   function showToast(message, type = 'success', duration = 3000) {
     if (!DOM.toastAlert) return;
@@ -650,24 +686,19 @@
     }, duration);
   }
 
-  // 14. Event Listeners
   function setupEventListeners() {
-    // Clique no mapa da lagoa
     if (DOM.fieldMapContainer) {
       DOM.fieldMapContainer.addEventListener('click', handleMapClick);
     }
 
-    // Alternar camada do mapa
     if (DOM.btnToggleFieldLayer) {
       DOM.btnToggleFieldLayer.addEventListener('click', toggleFieldLayer);
     }
 
-    // Botão GPS
     if (DOM.btnUseGps) {
       DOM.btnUseGps.addEventListener('click', handleUseGps);
     }
 
-    // Seletor de ponto pré-cadastrado
     if (DOM.pointSelect) {
       DOM.pointSelect.addEventListener('change', () => {
         const val = DOM.pointSelect.value;
@@ -678,19 +709,16 @@
       });
     }
 
-    // Escala Colorimétrica Dinâmica de pH em tempo real
     if (DOM.inputPh) {
       DOM.inputPh.addEventListener('input', updatePhColorimetricScale);
       DOM.inputPh.addEventListener('change', updatePhColorimetricScale);
       DOM.inputPh.addEventListener('blur', updatePhColorimetricScale);
     }
 
-    // Feedback dinâmico de Turbidez
     if (DOM.inputTurbidity) {
       DOM.inputTurbidity.addEventListener('input', updateTurbidityFeedback);
     }
 
-    // Upload e foto da amostra
     if (DOM.btnTriggerPhoto) {
       DOM.btnTriggerPhoto.addEventListener('click', () => {
         DOM.samplePhotoInput.click();
@@ -705,12 +733,10 @@
       DOM.btnRemovePhoto.addEventListener('click', removePhoto);
     }
 
-    // Envio do formulário
     if (DOM.form) {
       DOM.form.addEventListener('submit', handleFormSubmit);
     }
 
-    // Limpar Formulário
     if (DOM.btnResetForm) {
       DOM.btnResetForm.addEventListener('click', () => {
         if (confirm('Deseja limpar todos os campos do formulário de coleta?')) {
@@ -726,7 +752,6 @@
       });
     }
 
-    // Botão Sincronizar Manual
     if (DOM.btnManualSync) {
       DOM.btnManualSync.addEventListener('click', () => {
         if (!state.isOnline) {
@@ -737,7 +762,6 @@
       });
     }
 
-    // Limpar fila offline
     if (DOM.btnClearQueue) {
       DOM.btnClearQueue.addEventListener('click', () => {
         const pendingCount = state.offlineQueue.filter(i => i.syncStatus === 'pending').length;
@@ -752,22 +776,18 @@
       });
     }
 
-    // Eventos de rede do navegador
     window.addEventListener('online', handleOnlineEvent);
     window.addEventListener('offline', handleOfflineEvent);
   }
 
-  // 15. Bootstrap
   function bootstrap() {
     refreshTimestamp();
     loadOfflineQueue();
     setupEventListeners();
 
-    // Inicializa a escala colorimétrica com o valor padrão (7.25)
     updatePhColorimetricScale();
     updateTurbidityFeedback();
 
-    // Posiciona no Ponto 1 por padrão
     if (PRESET_POINTS.P1) {
       updateMapCoordinates(PRESET_POINTS.P1.lat, PRESET_POINTS.P1.lng, PRESET_POINTS.P1.xPercent, PRESET_POINTS.P1.yPercent);
     }

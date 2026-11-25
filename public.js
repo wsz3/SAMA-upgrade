@@ -13,6 +13,154 @@ const supabaseClient = (window.supabase && SUPABASE_URL && SUPABASE_ANON_KEY)
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
   : null;
 
+function generate30DayHistory(cfg) {
+  const list = [];
+  const now = new Date();
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    const dayLabel = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const factor = Math.sin(i * 0.4) * 0.5 + (Math.random() - 0.5) * 0.5;
+    list.push({
+      date: dayLabel,
+      dayOffset: i,
+      ph: Number((cfg.basePh + factor * cfg.varPh).toFixed(2)),
+      turbidity: Number(Math.max(1, cfg.baseTurbidity + factor * cfg.varTurbidity).toFixed(1)),
+      eColi: Math.round(Math.max(10, cfg.baseEColi + factor * cfg.varEColi)),
+      od: Number(Math.max(1, cfg.baseOD - factor * cfg.varOD).toFixed(1))
+    });
+  }
+  return list;
+}
+
+const INITIAL_POINTS = [
+  {
+    id: 'P1',
+    code: 'P1',
+    name: 'Foz Oeste / Entrada das Águas',
+    coordsDesc: '10°04\'28\'\' S, 44°17\'52\'\' W',
+    xPercent: 14.0,
+    yPercent: 70.0,
+    lastUpdate: 'Hoje, 09:30',
+    operator: 'Bióloga Marina Costa (SAMA)',
+    current: {
+      ph: 7.30,
+      turbidity: 58.0,
+      eColi: 1450,
+      dissolvedOxygen: 3.4,
+      waterTemp: 26.5,
+      airTemp: 29.8,
+      totalPhosphorus: 0.082
+    },
+    history30d: generate30DayHistory({
+      basePh: 7.25, varPh: 0.2,
+      baseTurbidity: 48, varTurbidity: 18,
+      baseEColi: 1200, varEColi: 350,
+      baseOD: 3.8, varOD: 0.6
+    })
+  },
+  {
+    id: 'P2',
+    code: 'P2',
+    name: 'Margem Norte / Parque Regina Freire',
+    coordsDesc: '10°04\'42\'\' S, 44°17\'30\'\' W',
+    xPercent: 32.0,
+    yPercent: 64.0,
+    lastUpdate: 'Hoje, 08:45',
+    operator: 'Eng. Renato Salles (SAMA)',
+    current: {
+      ph: 6.85,
+      turbidity: 32.0,
+      eColi: 650,
+      dissolvedOxygen: 4.8,
+      waterTemp: 25.8,
+      airTemp: 28.5,
+      totalPhosphorus: 0.038
+    },
+    history30d: generate30DayHistory({
+      basePh: 6.9, varPh: 0.2,
+      baseTurbidity: 30, varTurbidity: 8,
+      baseEColi: 600, varEColi: 180,
+      baseOD: 4.9, varOD: 0.5
+    })
+  },
+  {
+    id: 'P3',
+    code: 'P3',
+    name: 'Lâmina Central / Águas Profundas',
+    coordsDesc: '10°04\'50\'\' S, 44°17\'42\'\' W',
+    xPercent: 52.0,
+    yPercent: 60.0,
+    lastUpdate: 'Hoje, 10:15',
+    operator: 'Téc. Carlos Eduardo (SAMA)',
+    current: {
+      ph: 7.20,
+      turbidity: 12.5,
+      eColi: 110,
+      dissolvedOxygen: 6.8,
+      waterTemp: 24.5,
+      airTemp: 28.0,
+      totalPhosphorus: 0.018
+    },
+    history30d: generate30DayHistory({
+      basePh: 7.2, varPh: 0.15,
+      baseTurbidity: 14, varTurbidity: 4,
+      baseEColi: 130, varEColi: 40,
+      baseOD: 6.7, varOD: 0.4
+    })
+  },
+  {
+    id: 'P4',
+    code: 'P4',
+    name: 'Enseada Nordeste / Macrófitas',
+    coordsDesc: '10°04\'58\'\' S, 44°17\'55\'\' W',
+    xPercent: 72.0,
+    yPercent: 48.0,
+    lastUpdate: 'Hoje, 09:10',
+    operator: 'Bióloga Marina Costa (SAMA)',
+    current: {
+      ph: 7.40,
+      turbidity: 68.0,
+      eColi: 1850,
+      dissolvedOxygen: 3.1,
+      waterTemp: 27.2,
+      airTemp: 30.1,
+      totalPhosphorus: 0.095
+    },
+    history30d: generate30DayHistory({
+      basePh: 7.4, varPh: 0.25,
+      baseTurbidity: 62, varTurbidity: 12,
+      baseEColi: 1700, varEColi: 400,
+      baseOD: 3.3, varOD: 0.5
+    })
+  },
+  {
+    id: 'P5',
+    code: 'P5',
+    name: 'Foz Leste / Vertedouro Sul',
+    coordsDesc: '10°05\'15\'\' S, 44°17\'35\'\' W',
+    xPercent: 85.0,
+    yPercent: 58.0,
+    lastUpdate: 'Hoje, 08:00',
+    operator: 'Eng. Renato Salles (SAMA)',
+    current: {
+      ph: 7.10,
+      turbidity: 9.8,
+      eColi: 80,
+      dissolvedOxygen: 7.2,
+      waterTemp: 24.1,
+      airTemp: 27.5,
+      totalPhosphorus: 0.012
+    },
+    history30d: generate30DayHistory({
+      basePh: 7.1, varPh: 0.1,
+      baseTurbidity: 10, varTurbidity: 3,
+      baseEColi: 95, varEColi: 30,
+      baseOD: 7.1, varOD: 0.3
+    })
+  }
+];
+
 // Busca pontos e última medição no Supabase (com fallback para localStorage / INITIAL_POINTS)
 async function loadPointsFromSupabase() {
   if (!supabaseClient) return null;
@@ -28,7 +176,8 @@ async function loadPointsFromSupabase() {
     const { data: medicoes } = await supabaseClient
       .from("medicoes")
       .select("*")
-      .order("data_hora", { ascending: false });
+      .order("data_hora", { ascending: false })
+      .order("id", { ascending: false });
 
     const ultimaPorPonto = new Map();
     (medicoes || []).forEach((m) => {
@@ -43,7 +192,7 @@ async function loadPointsFromSupabase() {
       return {
         id: p.codigo,
         code: p.codigo,
-        name: p.nome,
+        name: p.nome || (initMatch ? initMatch.name : p.codigo),
         coordsDesc: (p.latitude != null && p.longitude != null)
           ? `${Number(p.latitude).toFixed(5)}°, ${Number(p.longitude).toFixed(5)}°`
           : (initMatch ? initMatch.coordsDesc : ""),
@@ -88,154 +237,6 @@ async function loadPointsFromSupabase() {
   const VALID_PASSWORDS = ['sama2026', 'admin123', 'operador2026'];
   const STORAGE_KEY_POINTS = 'SAMA_MONITORAMENTO_DB';
 
-  const INITIAL_POINTS = [
-    {
-      id: 'P1',
-      code: 'P1',
-      name: 'Foz Oeste / Entrada das Águas',
-      coordsDesc: '10°04\'28\'\' S, 44°17\'52\'\' W',
-      xPercent: 14.0,
-      yPercent: 70.0,
-      lastUpdate: 'Hoje, 09:30',
-      operator: 'Bióloga Marina Costa (SAMA)',
-      current: {
-        ph: 7.30,
-        turbidity: 58.0,
-        eColi: 1450,
-        dissolvedOxygen: 3.4,
-        waterTemp: 26.5,
-        airTemp: 29.8,
-        totalPhosphorus: 0.082
-      },
-      history30d: generate30DayHistory({
-        basePh: 7.25, varPh: 0.2,
-        baseTurbidity: 48, varTurbidity: 18,
-        baseEColi: 1200, varEColi: 350,
-        baseOD: 3.8, varOD: 0.6
-      })
-    },
-    {
-      id: 'P2',
-      code: 'P2',
-      name: 'Margem Norte / Parque Regina Freire',
-      coordsDesc: '10°04\'42\'\' S, 44°17\'30\'\' W',
-      xPercent: 32.0,
-      yPercent: 64.0,
-      lastUpdate: 'Hoje, 08:45',
-      operator: 'Eng. Renato Salles (SAMA)',
-      current: {
-        ph: 6.85,
-        turbidity: 32.0,
-        eColi: 650,
-        dissolvedOxygen: 4.8,
-        waterTemp: 25.8,
-        airTemp: 28.5,
-        totalPhosphorus: 0.038
-      },
-      history30d: generate30DayHistory({
-        basePh: 6.9, varPh: 0.2,
-        baseTurbidity: 30, varTurbidity: 8,
-        baseEColi: 600, varEColi: 180,
-        baseOD: 4.9, varOD: 0.5
-      })
-    },
-    {
-      id: 'P3',
-      code: 'P3',
-      name: 'Lâmina Central / Águas Profundas',
-      coordsDesc: '10°04\'50\'\' S, 44°17\'42\'\' W',
-      xPercent: 52.0,
-      yPercent: 60.0,
-      lastUpdate: 'Hoje, 10:15',
-      operator: 'Téc. Carlos Eduardo (SAMA)',
-      current: {
-        ph: 7.20,
-        turbidity: 12.5,
-        eColi: 110,
-        dissolvedOxygen: 6.8,
-        waterTemp: 24.5,
-        airTemp: 28.0,
-        totalPhosphorus: 0.018
-      },
-      history30d: generate30DayHistory({
-        basePh: 7.2, varPh: 0.15,
-        baseTurbidity: 14, varTurbidity: 4,
-        baseEColi: 130, varEColi: 40,
-        baseOD: 6.7, varOD: 0.4
-      })
-    },
-    {
-      id: 'P4',
-      code: 'P4',
-      name: 'Enseada Nordeste / Macrófitas',
-      coordsDesc: '10°04\'58\'\' S, 44°17\'55\'\' W',
-      xPercent: 72.0,
-      yPercent: 48.0,
-      lastUpdate: 'Hoje, 09:10',
-      operator: 'Bióloga Marina Costa (SAMA)',
-      current: {
-        ph: 7.40,
-        turbidity: 68.0,
-        eColi: 1850,
-        dissolvedOxygen: 3.1,
-        waterTemp: 27.2,
-        airTemp: 30.1,
-        totalPhosphorus: 0.095
-      },
-      history30d: generate30DayHistory({
-        basePh: 7.4, varPh: 0.25,
-        baseTurbidity: 62, varTurbidity: 12,
-        baseEColi: 1700, varEColi: 400,
-        baseOD: 3.3, varOD: 0.5
-      })
-    },
-    {
-      id: 'P5',
-      code: 'P5',
-      name: 'Foz Leste / Vertedouro Sul',
-      coordsDesc: '10°05\'15\'\' S, 44°17\'35\'\' W',
-      xPercent: 85.0,
-      yPercent: 58.0,
-      lastUpdate: 'Hoje, 08:00',
-      operator: 'Eng. Renato Salles (SAMA)',
-      current: {
-        ph: 7.10,
-        turbidity: 9.8,
-        eColi: 80,
-        dissolvedOxygen: 7.2,
-        waterTemp: 24.1,
-        airTemp: 27.5,
-        totalPhosphorus: 0.012
-      },
-      history30d: generate30DayHistory({
-        basePh: 7.1, varPh: 0.1,
-        baseTurbidity: 10, varTurbidity: 3,
-        baseEColi: 95, varEColi: 30,
-        baseOD: 7.1, varOD: 0.3
-      })
-    }
-  ];
-
-  function generate30DayHistory(cfg) {
-    const list = [];
-    const now = new Date();
-    for (let i = 29; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(d.getDate() - i);
-      const dayLabel = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const factor = Math.sin(i * 0.4) * 0.5 + (Math.random() - 0.5) * 0.5;
-      list.push({
-        date: dayLabel,
-        dayOffset: i,
-        ph: Number((cfg.basePh + factor * cfg.varPh).toFixed(2)),
-        turbidity: Number(Math.max(1, cfg.baseTurbidity + factor * cfg.varTurbidity).toFixed(1)),
-        eColi: Math.round(Math.max(10, cfg.baseEColi + factor * cfg.varEColi)),
-        od: Number(Math.max(1, cfg.baseOD - factor * cfg.varOD).toFixed(1))
-      });
-    }
-    return list;
-  }
-
   function evaluateWorstCaseStatus(p) {
     const criticalViolations = [];
     const warningViolations = [];
@@ -249,31 +250,22 @@ async function loadPointsFromSupabase() {
       phStatus = 'yellow';
     }
 
-    let bioStatus = 'green';
     if (p.eColi > THRESHOLDS.eColi.criticalMax) {
       criticalViolations.push(`Contaminação Biológica Severa: E. coli (${p.eColi} NMP/100mL > limite de 1.000)`);
-      bioStatus = 'red';
     } else if (p.eColi > THRESHOLDS.eColi.idealMax) {
       warningViolations.push(`E. coli em Alerta (${p.eColi} NMP/100mL)`);
-      bioStatus = 'yellow';
     }
 
-    let physicalStatus = 'green';
     if (p.turbidity > THRESHOLDS.turbidity.criticalMax) {
       criticalViolations.push(`Turbidez Crítica (${p.turbidity.toFixed(1)} NTU > limite de 40.0)`);
-      physicalStatus = 'red';
     } else if (p.turbidity > THRESHOLDS.turbidity.idealMax) {
       warningViolations.push(`Turbidez Elevada (${p.turbidity.toFixed(1)} NTU)`);
-      physicalStatus = 'yellow';
     }
 
-    let odStatus = 'green';
     if (p.dissolvedOxygen < THRESHOLDS.dissolvedOxygen.criticalMin) {
       criticalViolations.push(`Oxigênio Dissolvido Crítico (${p.dissolvedOxygen.toFixed(1)} mg/L < 4.0 mg/L)`);
-      odStatus = 'red';
     } else if (p.dissolvedOxygen < THRESHOLDS.dissolvedOxygen.idealMin) {
       warningViolations.push(`Oxigênio Dissolvido em Atenção (${p.dissolvedOxygen.toFixed(1)} mg/L)`);
-      odStatus = 'yellow';
     }
 
     if (criticalViolations.length > 0) {
@@ -330,7 +322,7 @@ async function loadPointsFromSupabase() {
     drawerBackdrop: document.getElementById('drawerBackdrop'),
     drawerPointsList: document.getElementById('drawerPointsList'),
     filterButtons: document.querySelectorAll('.filter-btn'),
-    
+
     mapViewport: document.getElementById('mapViewport'),
     pinsLayer: document.getElementById('pinsLayer'),
     mapCanvasWrapper: document.getElementById('mapCanvasWrapper'),
@@ -398,21 +390,13 @@ async function loadPointsFromSupabase() {
       const stored = localStorage.getItem(STORAGE_KEY_POINTS);
       if (stored) {
         state.points = JSON.parse(stored);
-        state.points.forEach(pt => {
-          const initMatch = INITIAL_POINTS.find(i => i.id === pt.id || i.code === pt.code);
-          if (initMatch) {
-            pt.xPercent = initMatch.xPercent;
-            pt.yPercent = initMatch.yPercent;
-            pt.name = initMatch.name;
-          }
-        });
       } else {
-        state.points = INITIAL_POINTS;
+        state.points = INITIAL_POINTS.map((pt) => ({ ...pt }));
         savePointsDatabase();
       }
     } catch (e) {
       console.warn('[SAMA Public] Falha ao ler localStorage. Usando banco em memória.', e);
-      state.points = INITIAL_POINTS;
+      state.points = INITIAL_POINTS.map((pt) => ({ ...pt }));
     }
 
     state.points.forEach(pt => {
@@ -465,7 +449,7 @@ async function loadPointsFromSupabase() {
   function renderDrawerInfo() {
     if (!DOM.drawerPointsList) return;
 
-    let countTotal = state.points.length;
+    const countTotal = state.points.length;
     let countGreen = 0;
     let countYellow = 0;
     let countRed = 0;
@@ -790,7 +774,6 @@ async function loadPointsFromSupabase() {
 
     const rect = DOM.miniTrendCanvas.getBoundingClientRect();
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
     const mouseX = clientX - rect.left;
 
     let closest = null;
